@@ -33,8 +33,8 @@ if deno_executable.is_file():
     binaries.append((str(deno_executable), "deno_bin"))
 
 # QML build excludes unneeded GUI toolkits at startup (~13 MB saved).
-# Keep only networking/browser deps needed for download.
-for package_name in ("curl_cffi", "yt_dlp_ejs", "webview"):
+# Keep only networking/browser/crypto deps needed for download and release verification.
+for package_name in ("curl_cffi", "yt_dlp_ejs", "webview", "pgpy", "cryptography"):
     package_datas, package_binaries, package_hiddenimports = collect_all(package_name)
     datas += package_datas
     binaries += package_binaries

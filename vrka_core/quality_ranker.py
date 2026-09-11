@@ -141,7 +141,7 @@ def rank_formats(formats: list[dict[str, Any]], profile: QualityProfile) -> list
 
 def build_ytdlp_format_spec(mode: str, quality_label: str, prefer_60fps: bool = True) -> tuple[str, str]:
     """Generate yt-dlp format selector string and sorting arguments.
-    
+
     Returns:
         (format_selector, format_sort_criteria)
     """

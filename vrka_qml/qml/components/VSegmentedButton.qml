@@ -1,17 +1,18 @@
-pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Effects
 import ".."
 
 Rectangle {
     id: root
 
     property int selectedIndex: 0
-    property var options: ["Video Stream", "Audio Only"]
+    property var options: ["Video", "Audio"]
+    property var icons: ["play", "music"]
     signal optionSelected(int index)
 
-    implicitWidth: 260
+    implicitWidth: 240
     implicitHeight: Theme.controlHeight
     radius: Theme.controlRadius
     color: Theme.cardAlt
@@ -46,30 +47,49 @@ Rectangle {
                     }
                 }
 
-                contentItem: RowLayout {
-                    spacing: 6
-                    anchors.centerIn: parent
+                contentItem: Item {
+                    anchors.fill: parent
 
-                    Image {
-                        Layout.preferredWidth: 14
-                        Layout.preferredHeight: 14
-                        source: {
-                            var icon = segBtn.index === 0 ? "play" : "music"
-                            return Qt.resolvedUrl("../../../assets/branding/v2icons/" + icon + "-accent-32.png")
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 8
+
+                        Item {
+                            Layout.preferredWidth: 14
+                            Layout.preferredHeight: 14
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Image {
+                                id: segIcon
+                                anchors.fill: parent
+                                source: {
+                                    var icon = (root.icons && root.icons.length > segBtn.index) ? root.icons[segBtn.index] : (segBtn.index === 0 ? "play" : "music")
+                                    return Qt.resolvedUrl("../../../assets/branding/v2icons/" + icon + "-accent-32.png")
+                                }
+                                fillMode: Image.PreserveAspectFit
+                                mipmap: true
+                                visible: false
+                            }
+
+                            MultiEffect {
+                                anchors.fill: segIcon
+                                source: segIcon
+                                colorization: root.selectedIndex === segBtn.index ? 1.0 : 0.0
+                                colorizationColor: "#FFFFFF"
+                                brightness: root.selectedIndex === segBtn.index ? 1.0 : 0.0
+                                opacity: root.selectedIndex === segBtn.index ? 1.0 : 0.65
+                            }
                         }
-                        fillMode: Image.PreserveAspectFit
-                        mipmap: true
-                        opacity: root.selectedIndex === segBtn.index ? 1.0 : 0.7
-                    }
 
-                    Text {
-                        text: segBtn.modelData
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.smallSize
-                        font.bold: root.selectedIndex === segBtn.index
-                        color: root.selectedIndex === segBtn.index ? Theme.textOnAccent : Theme.textMuted
-                        verticalAlignment: Text.AlignVCenter
-                        horizontalAlignment: Text.AlignHCenter
+                        Text {
+                            text: segBtn.modelData
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.bodySize
+                            font.bold: root.selectedIndex === segBtn.index
+                            color: root.selectedIndex === segBtn.index ? Theme.textOnAccent : Theme.text
+                            verticalAlignment: Text.AlignVCenter
+                            Layout.alignment: Qt.AlignVCenter
+                        }
                     }
                 }
 

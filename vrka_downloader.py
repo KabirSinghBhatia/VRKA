@@ -247,15 +247,23 @@ QUALITY_MAP = {
 }
 
 AUDIO_FORMAT_MAP = {
+    "MP3": "mp3",
     "MP3 (Compressed)": "mp3",
+    "Opus": "opus",
+    "Opus (High Efficiency)": "opus",
+    "WAV": "wav",
     "WAV (Uncompressed)": "wav",
+    "WAV (Uncompressed PCM)": "wav",
+    "FLAC": "flac",
     "FLAC (Lossless container)": "flac",
 }
 
 MP3_BITRATE_MAP = {
     "320 kbps": "320K",
+    "320 kbps (Best)": "320K",
     "256 kbps": "256K",
     "192 kbps": "192K",
+    "192 kbps (Standard)": "192K",
     "128 kbps": "128K",
 }
 

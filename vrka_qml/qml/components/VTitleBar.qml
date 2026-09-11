@@ -34,12 +34,13 @@ Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: 16
                 anchors.rightMargin: 16
-                spacing: 8
+                spacing: 10
 
                 Image {
                     source: Qt.resolvedUrl("../../../assets/branding/vrka-wolf-256.png")
-                    Layout.preferredWidth: 20
-                    Layout.preferredHeight: 20
+                    Layout.preferredWidth: 26
+                    Layout.preferredHeight: 26
+                    Layout.alignment: Qt.AlignVCenter
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
                 }
@@ -50,11 +51,13 @@ Rectangle {
                     font.pixelSize: Theme.bodySize
                     font.bold: true
                     color: Theme.text
+                    Layout.alignment: Qt.AlignVCenter
                 }
 
                 Rectangle {
                     Layout.preferredWidth: 38
                     Layout.preferredHeight: 18
+                    Layout.alignment: Qt.AlignVCenter
                     radius: 9
                     color: Theme.accentSoft
                     border.width: 1

@@ -47,9 +47,13 @@ Item {
                 spacing: 10
                 Layout.alignment: Qt.AlignVCenter
 
-                VPill {
+                Label {
                     text: String(Bridge.historyCount).padStart(2, "0") + " ARCHIVED ITEMS"
-                    textColor: Theme.textDim
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.smallSize
+                    font.bold: true
+                    color: Theme.textDim
+                    Layout.alignment: Qt.AlignVCenter
                 }
 
                 VSecondaryButton {

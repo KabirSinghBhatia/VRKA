@@ -58,6 +58,20 @@ class SettingsAndParityTests(unittest.TestCase):
         self.assertNotIn("SECRET_VAL_123", diagnostics)
         self.assertIn("[REDACTED]", diagnostics)
 
+    def test_operational_controller_helper_slots(self):
+        settings = SettingsState(self.mock_host)
+        op_ctrl = OperationalController(self.mock_host, self.mock_bridge, settings)
+
+        # Test verification window and retry slots
+        op_ctrl.openVerificationWindow()
+        self.mock_host.ui_queue.put.assert_any_call(("log", "Browser verification window requested."))
+
+        op_ctrl.retryAfterVerification()
+        self.mock_host.ui_queue.put.assert_any_call(("log", "Retrying transfer after verification window confirmation."))
+
+        # Test openOutputFolder slot
+        op_ctrl.openOutputFolder()
+
 
 if __name__ == "__main__":
     unittest.main()

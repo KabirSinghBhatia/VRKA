@@ -369,7 +369,7 @@ ScrollView {
 
                 VSegmentedButton {
                     id: modeSegment
-                    options: ["Video Stream", "Audio Only"]
+                    options: ["Video", "Audio"]
                     selectedIndex: 0
                 }
 
@@ -630,7 +630,7 @@ ScrollView {
             }
         }
 
-        // Section 4: Playlist Scope & Trimming (Collapsible)
+        // Section 4: Playlist Scope & Trimming (Collapsible Progressive Disclosure)
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: playlistScopeCol.implicitHeight + (scopeDetails.visible ? 24 : 16)
@@ -650,6 +650,13 @@ ScrollView {
 
                     RowLayout {
                         spacing: 8
+                        Image {
+                            source: Qt.resolvedUrl("../../../assets/branding/v2icons/list-accent-32.png")
+                            Layout.preferredWidth: 14
+                            Layout.preferredHeight: 14
+                            fillMode: Image.PreserveAspectFit
+                            mipmap: true
+                        }
                         Label {
                             text: "PLAYLIST & TRIMMING"
                             font.family: Theme.fontFamily
@@ -662,7 +669,7 @@ ScrollView {
                     Item { Layout.fillWidth: true }
 
                     VSecondaryButton {
-                        text: scopeDetails.visible ? "Hide" : "Expand"
+                        text: scopeDetails.visible ? "Hide Options" : "Show Options"
                         Layout.preferredHeight: 28
                         onClicked: scopeDetails.visible = !scopeDetails.visible
                     }
@@ -672,12 +679,23 @@ ScrollView {
                     id: scopeDetails
                     visible: false
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: 10
 
-                    VCheckBox {
-                        id: playlistCheck
-                        text: "Enable Playlist Range"
-                        checked: false
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+
+                        VCheckBox {
+                            id: playlistCheck
+                            text: "Download entire playlist"
+                            checked: false
+                        }
+
+                        VCheckBox {
+                            id: trimCheck
+                            text: "Enable trim range"
+                            checked: false
+                        }
                     }
 
                     RowLayout {
@@ -685,34 +703,47 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label {
-                            text: "Start Index:"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.smallSize
-                            color: Theme.textMuted
-                        }
-                        VTextField {
-                            id: playlistStartField
-                            text: "1"
-                            Layout.preferredWidth: 60
-                        }
-                        Label {
-                            text: "End Index:"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.smallSize
-                            color: Theme.textMuted
-                        }
-                        VTextField {
-                            id: playlistEndField
-                            placeholderText: "all"
-                            Layout.preferredWidth: 60
-                        }
-                    }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 0
+                            spacing: 4
 
-                    VCheckBox {
-                        id: trimCheck
-                        text: "Enable Media Trimming (hh:mm:ss)"
-                        checked: false
+                            Label {
+                                text: "START INDEX"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.textDim
+                            }
+
+                            VTextField {
+                                id: playlistStartField
+                                Layout.fillWidth: true
+                                text: "1"
+                                placeholderText: "1"
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 0
+                            spacing: 4
+
+                            Label {
+                                text: "END INDEX"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.textDim
+                            }
+
+                            VTextField {
+                                id: playlistEndField
+                                Layout.fillWidth: true
+                                text: "last"
+                                placeholderText: "last"
+                            }
+                        }
                     }
 
                     RowLayout {
@@ -720,27 +751,46 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        Label {
-                            text: "Start:"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.smallSize
-                            color: Theme.textMuted
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 0
+                            spacing: 4
+
+                            Label {
+                                text: "START (HH:MM:SS)"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.textDim
+                            }
+
+                            VTextField {
+                                id: trimStartField
+                                Layout.fillWidth: true
+                                text: "00:00:00"
+                                placeholderText: "00:00:00"
+                            }
                         }
-                        VTextField {
-                            id: trimStartField
-                            placeholderText: "00:00:00"
-                            Layout.preferredWidth: 90
-                        }
-                        Label {
-                            text: "End:"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.smallSize
-                            color: Theme.textMuted
-                        }
-                        VTextField {
-                            id: trimEndField
-                            placeholderText: "00:10:00"
-                            Layout.preferredWidth: 90
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 0
+                            spacing: 4
+
+                            Label {
+                                text: "END (HH:MM:SS)"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.textDim
+                            }
+
+                            VTextField {
+                                id: trimEndField
+                                Layout.fillWidth: true
+                                text: "00:00:00"
+                                placeholderText: "00:00:00"
+                            }
                         }
                     }
                 }
@@ -750,7 +800,7 @@ ScrollView {
         // Primary Action: Add to Queue
         Item {
             Layout.fillWidth: true
-            implicitHeight: 52
+            implicitHeight: 48
 
             VPrimaryButton {
                 anchors.fill: parent

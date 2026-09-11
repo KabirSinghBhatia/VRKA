@@ -13,33 +13,33 @@ QtObject {
                                          ? "Segoe UI Variable, Segoe UI, -apple-system, sans-serif"
                                          : "Space Mono"
 
-    // Exact Authoritative VRKA Semantic Colors & Surface Elevations
-    readonly property color bg:              isLight ? "#F8F9FC" : "#070709"
-    readonly property color sidebar:         isLight ? "#FFFFFF" : "#0C0C10"
-    readonly property color card:            isLight ? "#FFFFFF" : "#111116"
-    readonly property color cardAlt:         isLight ? "#F1F3F8" : "#171720"
-    readonly property color surfaceElevated: isLight ? "#E8ECF4" : "#1E1E2A"
-    readonly property color surfaceHover:    isLight ? "#DFE4EE" : "#262636"
-    readonly property color border:          isLight ? "#DCE1EC" : "#252533"
-    readonly property color borderStrong:    isLight ? "#C5CCDC" : "#38384C"
+    // Exact Authoritative VRKA Semantic Colors & AMOLED Surfaces
+    readonly property color bg:              isLight ? "#FFFFFF" : "#000000"
+    readonly property color sidebar:         isLight ? "#F7F7F8" : "#050505"
+    readonly property color card:            isLight ? "#FFFFFF" : "#08080B"
+    readonly property color cardAlt:         isLight ? "#F1F3F8" : "#0F0F14"
+    readonly property color surfaceElevated: isLight ? "#E8ECF4" : "#16161D"
+    readonly property color surfaceHover:    isLight ? "#DFE4EE" : "#1F1F2A"
+    readonly property color border:          isLight ? "#DCE1EC" : "#1C1C24"
+    readonly property color borderStrong:    isLight ? "#C5CCDC" : "#2E2E3C"
 
-    // Subtle Translucent / Frosted Material Tokens (Material 0 - 4)
+    // Subtle Translucent / Frosted Material Tokens (Material 0 - 4 & Android-inspired glass)
     readonly property color material0: bg
     readonly property color material1: sidebar
     readonly property color material2: card
     readonly property color material3: cardAlt
     readonly property color material4: surfaceElevated
-    readonly property color glassBg:      isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.85) : Qt.rgba(0.07, 0.07, 0.09, 0.85)
-    readonly property color glassBorder:  isLight ? Qt.rgba(0.86, 0.88, 0.93, 0.9) : Qt.rgba(0.20, 0.20, 0.28, 0.9)
-    readonly property color titleBarBg:   isLight ? "#FFFFFF" : "#0C0C10"
-    readonly property color titleBarBorder: isLight ? "#DCE1EC" : "#252533"
+    readonly property color glassBg:      isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.88) : Qt.rgba(0.04, 0.02, 0.08, 0.85)
+    readonly property color glassBorder:  isLight ? Qt.rgba(0.86, 0.88, 0.93, 0.9) : Qt.rgba(0.24, 0.16, 0.40, 0.5)
+    readonly property color titleBarBg:   isLight ? "#FFFFFF" : "#000000"
+    readonly property color titleBarBorder: isLight ? "#DCE1EC" : "transparent"
 
     // VRKA Signature Accent (Refined purple)
     readonly property color accent:          "#8140DC"
     readonly property color accentHover:     "#9255E5"
     readonly property color accentPressed:   "#6E31C3"
-    readonly property color accentSoft:      isLight ? "#F1E8FC" : "#1C112C"
-    readonly property color accentSoftHover: isLight ? "#E8D9FA" : "#28173E"
+    readonly property color accentSoft:      isLight ? "#F1E8FC" : "#180D24"
+    readonly property color accentSoftHover: isLight ? "#E8D9FA" : "#241236"
     readonly property color focusRing:       "#9255E5"
 
     // Text hierarchy

@@ -182,6 +182,22 @@ class OperationalController(QObject):
         self.clearBrowserSession()
         return "Browser session data, cache, and cookies purged successfully."
 
+    @Slot()
+    def openVerificationWindow(self) -> None:
+        try:
+            self._host.ui_queue.put(("log", "Browser verification window requested."))
+        except Exception:
+            pass
+        self.browserStateChanged.emit()
+
+    @Slot()
+    def retryAfterVerification(self) -> None:
+        try:
+            self._host.ui_queue.put(("log", "Retrying transfer after verification window confirmation."))
+        except Exception:
+            pass
+        self.browserStateChanged.emit()
+
     # ------------------------------------------------------------------
     # MediaObserver
     # ------------------------------------------------------------------
@@ -219,6 +235,65 @@ class OperationalController(QObject):
     @Slot()
     def refreshObserverStatus(self) -> None:
         self._refresh_observer_snapshot()
+
+    @Slot()
+    def checkObserverUpdate(self) -> None:
+        if self._updater_busy:
+            return
+        self._updater_busy = True
+        self.updaterBusyChanged.emit()
+
+        def _worker():
+            try:
+                from vrka_core.media_observer import check_for_update
+                info = check_for_update()
+                if info.get("error"):
+                    text = f"Observer check failed: {info.get('error')}"
+                elif info.get("update_available"):
+                    text = f"Update available: {info.get('available_version')} (installed {info.get('current_version')})"
+                else:
+                    text = f"Observer up to date (latest {info.get('available_version')})"
+                self._observer_status_text = text
+                self.observerStatusTextChanged.emit()
+                self._refresh_observer_snapshot()
+            except Exception as exc:
+                self._observer_status_text = f"Observer check error: {exc}"
+                self.observerStatusTextChanged.emit()
+            finally:
+                self._updater_busy = False
+                self.updaterBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @Slot()
+    def applyObserverUpdate(self) -> None:
+        if self._updater_busy:
+            return
+        self._updater_busy = True
+        self._observer_status_text = "Updating media observer..."
+        self.observerStatusTextChanged.emit()
+        self.updaterBusyChanged.emit()
+
+        def _worker():
+            try:
+                from vrka_core.media_observer import apply_update
+                result = apply_update()
+                if result.get("updated"):
+                    self._observer_status_text = f"Updated to {result.get('installed_version')}"
+                elif result.get("message"):
+                    self._observer_status_text = str(result.get("message"))
+                else:
+                    self._observer_status_text = f"Observer update failed: {result.get('error')}"
+                self.observerStatusTextChanged.emit()
+                self._refresh_observer_snapshot()
+            except Exception as exc:
+                self._observer_status_text = f"Observer update error: {exc}"
+                self.observerStatusTextChanged.emit()
+            finally:
+                self._updater_busy = False
+                self.updaterBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     # ------------------------------------------------------------------
     # yt-dlp Component Updater
@@ -474,5 +549,21 @@ class OperationalController(QObject):
             notices = app.resource_path(app.Path("THIRD_PARTY_NOTICES.md"))
             if app.Path(notices).exists():
                 app.open_path(str(notices))
+        except Exception:
+            pass
+
+    @Slot()
+    def openOutputFolder(self) -> None:
+        try:
+            folder = getattr(self._host, "output_folder", None) or os.getcwd()
+            app.open_path(str(folder))
+        except Exception:
+            pass
+
+    @Slot(str)
+    def openUrl(self, url: str) -> None:
+        try:
+            import webbrowser
+            webbrowser.open(str(url))
         except Exception:
             pass

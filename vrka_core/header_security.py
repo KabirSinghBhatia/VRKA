@@ -51,7 +51,7 @@ def validate_header_value(value: str) -> bool:
 
 def parse_custom_headers(raw: str | dict[str, str] | list[str] | Any) -> tuple[dict[str, str], list[str]]:
     """Parse and validate custom headers into a normalized dict.
-    
+
     Returns:
         (headers_dict, errors_list)
     """

@@ -88,6 +88,7 @@ class AppUpdateInfo:
     asset_name: str
     asset_download_url: str
     sha256_manifest_url: str
+    signature_url: str
     is_newer: bool
 
 
@@ -145,18 +146,21 @@ def check_for_application_update(
     asset_name = ""
     asset_url = ""
     sha256_url = ""
+    sig_url = ""
 
     for a in assets:
         name = str(a.get("name") or "")
         durl = str(a.get("browser_download_url") or "")
-        if _ASSET_PATTERN.match(name) and not asset_url:
+        if name.endswith(".asc") and ("sha256" in name.lower() or "manifest" in name.lower()):
+            sig_url = durl
+        elif "sha256" in name.lower() or name.lower() == "sha256sums.txt":
+            sha256_url = durl
+        elif _ASSET_PATTERN.match(name) and not asset_url:
             asset_name = name
             asset_url = durl
         elif _PORTABLE_ZIP_PATTERN.match(name) and not asset_url:
             asset_name = name
             asset_url = durl
-        elif "sha256" in name.lower() or name.lower() == "sha256sums.txt":
-            sha256_url = durl
 
     return AppUpdateInfo(
         current_version=current_version_str,
@@ -167,6 +171,7 @@ def check_for_application_update(
         asset_name=asset_name,
         asset_download_url=asset_url,
         sha256_manifest_url=sha256_url,
+        signature_url=sig_url,
         is_newer=is_newer,
     )
 
@@ -175,14 +180,17 @@ def download_and_verify_update(
     update_info: AppUpdateInfo,
     staging_dir: Path | None = None,
     progress_cb: Callable[[int, int], None] | None = None,
+    require_signature: bool = True,
 ) -> Path:
-    """Download and verify release asset against SHA-256 manifest.
-    
-    NOTE ON INTEGRITY VS AUTHENTICITY:
-    The SHA-256 checksum provides cryptographic transport integrity against
-    truncated, incomplete, or corrupted downloads. Origin authenticity is
-    guaranteed by HTTPS certificate validation and approved GitHub host filtering.
+    """Download, verify SHA-256 integrity, and authenticate OpenPGP release signature.
+
+    Security & Authenticity Model:
+    1. SHA-256 establishes artifact integrity against transfer corruption.
+    2. OpenPGP signature verification establishes release authenticity against pinned key.
+    3. Fails closed if signature is missing or verification fails when require_signature is True.
     """
+    from vrka_core.release_verifier import verify_release_artifact
+
     if not update_info.asset_download_url:
         raise ValueError("No valid release installer asset found in update metadata")
 
@@ -196,8 +204,9 @@ def download_and_verify_update(
 
     opener = urllib.request.build_opener(SafeRedirectHandler())
 
-    # 1. Fetch SHA256 manifest if provided
-    expected_hash = ""
+    # 1. Fetch SHA256 manifest and OpenPGP signature
+    manifest_text = ""
+    signature_text = ""
     if update_info.sha256_manifest_url:
         try:
             req = urllib.request.Request(
@@ -206,19 +215,26 @@ def download_and_verify_update(
             )
             with opener.open(req, timeout=15.0) as resp:
                 manifest_text = resp.read().decode("utf-8", errors="replace")
-                for line in manifest_text.splitlines():
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        h = parts[0].strip()
-                        fn = parts[-1].strip().lstrip("*./\\")
-                        if fn.lower() == update_info.asset_name.lower():
-                            expected_hash = h.lower()
-                            break
-        except Exception:
-            pass
+        except Exception as m_exc:
+            if require_signature:
+                raise ValueError(f"Failed to fetch release manifest: {m_exc}") from m_exc
+
+    if update_info.signature_url:
+        try:
+            req = urllib.request.Request(
+                update_info.signature_url,
+                headers={"User-Agent": "VRKA-Updater"},
+            )
+            with opener.open(req, timeout=15.0) as resp:
+                signature_text = resp.read().decode("utf-8", errors="replace")
+        except Exception as s_exc:
+            if require_signature:
+                raise ValueError(f"Failed to fetch OpenPGP signature: {s_exc}") from s_exc
+
+    if require_signature and (not manifest_text or not signature_text):
+        raise ValueError("Authenticated release verification failed: missing signed manifest or OpenPGP signature.")
 
     # 2. Stream binary asset
-    hasher = hashlib.sha256()
     req = urllib.request.Request(
         update_info.asset_download_url,
         headers={"User-Agent": "VRKA-Updater"},
@@ -232,19 +248,21 @@ def download_and_verify_update(
             if not chunk:
                 break
             out.write(chunk)
-            hasher.update(chunk)
             downloaded += len(chunk)
             if progress_cb and total_size > 0:
                 progress_cb(downloaded, total_size)
 
-    # 3. Verify Checksum
-    computed_hash = hasher.hexdigest().lower()
-    if expected_hash and computed_hash != expected_hash:
-        if temp_file.exists():
-            temp_file.unlink()
-        raise ValueError(
-            f"SHA-256 transfer integrity mismatch!\nExpected: {expected_hash}\nComputed: {computed_hash}"
+    # 3. Authenticate & Verify Integrity
+    if manifest_text and signature_text:
+        ver_res = verify_release_artifact(
+            artifact_path=temp_file,
+            manifest_content=manifest_text,
+            signature_content=signature_text,
         )
+        if not ver_res.authenticated or not ver_res.integrity_ok:
+            if temp_file.exists():
+                temp_file.unlink()
+            raise ValueError(f"Authenticated release verification rejected: {ver_res.error}")
 
     # 4. Atomic move to final target
     if target_file.exists():
