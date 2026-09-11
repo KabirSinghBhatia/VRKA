@@ -72,6 +72,34 @@ class SettingsAndParityTests(unittest.TestCase):
         # Test openOutputFolder slot
         op_ctrl.openOutputFolder()
 
+    def test_independent_component_update_states(self):
+        settings = SettingsState(self.mock_host)
+        op_ctrl = OperationalController(self.mock_host, self.mock_bridge, settings)
+
+        # Initial state checks
+        self.assertFalse(op_ctrl.updaterBusy)
+        self.assertFalse(op_ctrl.ubolBusy)
+        self.assertFalse(op_ctrl.puemosBusy)
+        self.assertEqual(op_ctrl.ubolCurrentVersion, "1.0.4 (MV3)")
+        self.assertEqual(op_ctrl.puemosCurrentVersion, "5.5.0 (MV3)")
+
+        # Verify triggering ubol check does not mark ytdlp or puemos busy
+        op_ctrl.checkUbolUpdate()
+        self.assertFalse(op_ctrl.updaterBusy)
+        self.assertFalse(op_ctrl.puemosBusy)
+
+    def test_subsystem_startup_initialization(self):
+        settings = SettingsState(self.mock_host)
+        op_ctrl = OperationalController(self.mock_host, self.mock_bridge, settings)
+
+        self.assertIn(op_ctrl.updaterOperationalStatus, ("Active", "Ready", "Unavailable"))
+        self.assertIn(op_ctrl.ubolOperationalStatus, ("Active", "Ready"))
+        self.assertIn(op_ctrl.puemosOperationalStatus, ("Active", "Ready", "Degraded"))
+        self.assertTrue(len(op_ctrl.updaterCurrentVersion) > 0)
+
+        # Slot refreshAllSubsystems runs cleanly
+        op_ctrl.refreshAllSubsystems()
+        self.assertIn(op_ctrl.updaterOperationalStatus, ("Active", "Ready", "Unavailable"))
 
 if __name__ == "__main__":
     unittest.main()

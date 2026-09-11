@@ -1,4 +1,4 @@
-"""Production domain core for VRKA 4.0.0."""
+"""Production domain core for VRKA 4.5.0."""
 
 from .browser_capture import MediaBodyCapture
 from .browser_fallback import (

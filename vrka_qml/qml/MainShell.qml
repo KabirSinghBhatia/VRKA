@@ -21,19 +21,19 @@ ApplicationWindow {
     minimumWidth: 1020
     minimumHeight: 700
     visible: true
-    title: "VRKA - Media Downloader"
-    color: "transparent"
+    title: "VRKA"
+    color: (shell.visibility === Window.Maximized || shell.width >= 1900) ? Theme.bg : "transparent"
     flags: Qt.Window | Qt.FramelessWindowHint | Qt.WindowMinMaxButtonsHint
 
-    // Outer Rounded Container for Frameless Application Shell
+    // Outer Container for Application Shell
     Rectangle {
         id: appRoot
         anchors.fill: parent
-        radius: shell.visibility === Window.Maximized ? 0 : Theme.cardRadius
+        radius: (shell.visibility === Window.Maximized || shell.width >= 1900) ? 0 : Theme.cardRadius
         clip: true
         color: Theme.bg
-        border.width: shell.visibility === Window.Maximized ? 0 : Theme.hairline
-        border.color: Theme.borderStrong
+        border.width: (shell.visibility === Window.Maximized || shell.width >= 1900) ? 0 : Theme.hairline
+        border.color: (shell.visibility === Window.Maximized || shell.width >= 1900) ? "transparent" : Theme.borderStrong
 
         // Top Integrated Custom Windows Title Bar
         VTitleBar {
@@ -53,107 +53,79 @@ ApplicationWindow {
             anchors.top: customTitleBar.bottom
             anchors.bottom: parent.bottom
 
-            // Left Navigation Sidebar (Frosted Translucent Material Shell)
-            Item {
+            // Left Navigation Sidebar (Floating Neutral Island)
+            Rectangle {
                 id: sidebar
+                objectName: "sidebar"
                 anchors.left: parent.left
+                anchors.leftMargin: 12
                 anchors.top: parent.top
+                anchors.topMargin: 8
                 anchors.bottom: parent.bottom
+                anchors.bottomMargin: 12
                 width: Theme.sidebarWidth
-
-                // Layer 1: Base Translucent Acrylic Gradient
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Theme.sidebarGlassTop }
-                        GradientStop { position: 0.5; color: Theme.sidebarGlassMid }
-                        GradientStop { position: 1.0; color: Theme.sidebarGlassBottom }
-                    }
-                }
-
-                // Layer 2: Ambient Purple Refraction Glow behind brand & navigation
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    height: 240
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Theme.sidebarGlow }
-                        GradientStop { position: 1.0; color: "transparent" }
-                    }
-                }
-
-                // Layer 3: Inner Specular Glass Sheen (Left rim highlight)
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: 1
-                    color: Theme.sidebarHighlight
-                }
-
-                // Layer 4: Right Frosted Glass Boundary Divider
-                Rectangle {
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: Theme.hairline
-                    color: Theme.sidebarBorder
-                }
+                radius: Theme.sidebarRadius
+                color: Theme.sidebarBg
+                border.width: 1
+                border.color: Theme.sidebarBorder
+                clip: true
 
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 0
 
-                    // Brand Header Lockup
+                    // Brand Header Lockup (Compact Wolf + Title)
                     Item {
                         Layout.fillWidth: true
-                        implicitHeight: 96
+                        implicitHeight: 70
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 18
-                            anchors.rightMargin: 18
-                            anchors.topMargin: 16
-                            anchors.bottomMargin: 16
-                            spacing: 12
+                            anchors.leftMargin: 16
+                            anchors.rightMargin: 16
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 8
+                            spacing: 10
 
                             Image {
                                 source: Qt.resolvedUrl("../../assets/branding/vrka-wolf-256.png")
-                                Layout.preferredWidth: 54
-                                Layout.preferredHeight: 54
+                                Layout.preferredWidth: 42
+                                Layout.preferredHeight: 42
+                                Layout.alignment: Qt.AlignVCenter
                                 fillMode: Image.PreserveAspectFit
                                 mipmap: true
                             }
 
                             ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
+                                spacing: 0
+                                Layout.alignment: Qt.AlignVCenter
 
                                 Label {
                                     text: "VRKA"
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.brandTitleSize
+                                    font.pixelSize: 20
                                     font.bold: true
                                     color: Theme.text
                                 }
 
                                 Label {
-                                    text: "MEDIA ENGINE"
+                                    text: "v" + APP_DISPLAY_VERSION
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.microSize
+                                    font.pixelSize: 11
                                     font.bold: true
                                     color: Theme.textDim
                                 }
                             }
+
+                            Item { Layout.fillWidth: true }
                         }
                     }
 
                     // Hairline separator below branding
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.leftMargin: 18
-                        Layout.rightMargin: 18
+                        Layout.leftMargin: 14
+                        Layout.rightMargin: 14
                         implicitHeight: Theme.hairline
                         color: Theme.border
                     }
@@ -177,6 +149,7 @@ ApplicationWindow {
                         }
 
                         VNavItem {
+                            Layout.fillWidth: true
                             text: "Download"
                             iconName: "download"
                             selected: shell.currentPageIndex === 0
@@ -184,6 +157,7 @@ ApplicationWindow {
                         }
 
                         VNavItem {
+                            Layout.fillWidth: true
                             text: "Queue"
                             iconName: "list"
                             badgeCount: Bridge.activeCount
@@ -192,6 +166,7 @@ ApplicationWindow {
                         }
 
                         VNavItem {
+                            Layout.fillWidth: true
                             text: "History"
                             iconName: "clock"
                             selected: shell.currentPageIndex === 2
@@ -199,6 +174,7 @@ ApplicationWindow {
                         }
 
                         VNavItem {
+                            Layout.fillWidth: true
                             text: "Settings"
                             iconName: "gear"
                             selected: shell.currentPageIndex === 3
@@ -319,14 +295,6 @@ ApplicationWindow {
                                 }
 
                                 Item { Layout.fillWidth: true }
-
-                                Label {
-                                    text: "v" + APP_DISPLAY_VERSION
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.microSize
-                                    font.bold: true
-                                    color: Theme.textDim
-                                }
                             }
 
                             // Hairline divider
@@ -433,18 +401,21 @@ ApplicationWindow {
             }
 
             // Main Content Canvas Area
-            Rectangle {
+            Item {
                 id: mainCanvas
                 anchors.left: sidebar.right
+                anchors.leftMargin: 12
                 anchors.right: parent.right
+                anchors.rightMargin: 12
                 anchors.top: parent.top
+                anchors.topMargin: 8
                 anchors.bottom: parent.bottom
-                color: Theme.bg
+                anchors.bottomMargin: 12
 
                 StackLayout {
                     id: pageStack
                     anchors.fill: parent
-                    anchors.margins: Theme.pagePadX
+                    anchors.margins: 12
                     currentIndex: shell.currentPageIndex
 
                     DownloadPage { id: downloadView }
@@ -458,6 +429,7 @@ ApplicationWindow {
 
     // Native Window Edge & Corner Resize Handles
     MouseArea {
+        visible: shell.visibility !== Window.Maximized
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -468,6 +440,7 @@ ApplicationWindow {
     }
 
     MouseArea {
+        visible: shell.visibility !== Window.Maximized
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -478,6 +451,7 @@ ApplicationWindow {
     }
 
     MouseArea {
+        visible: shell.visibility !== Window.Maximized
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -488,6 +462,7 @@ ApplicationWindow {
     }
 
     MouseArea {
+        visible: shell.visibility !== Window.Maximized
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         width: 10
@@ -498,6 +473,7 @@ ApplicationWindow {
     }
 
     MouseArea {
+        visible: shell.visibility !== Window.Maximized
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         width: 10

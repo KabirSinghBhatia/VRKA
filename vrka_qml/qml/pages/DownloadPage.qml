@@ -8,6 +8,7 @@ import "../components"
 
 ScrollView {
     id: downloadScroll
+    objectName: "downloadScroll"
     clip: true
     contentWidth: availableWidth
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -17,13 +18,13 @@ ScrollView {
     property string pendingUrl: ""
     property var pendingOptions: ({})
 
-    // Responsive Spacing Tokens (Scale gracefully across 720p, 900p, 1080p, and 4K displays)
-    readonly property real vH: downloadScroll.height
-    readonly property int responsiveGap: Math.min(24, Math.max(10, Math.round((vH - 600) * 0.035) + 12))
-    readonly property int topMarginPad: Math.min(32, Math.max(12, Math.round((vH - 600) * 0.045) + 14))
-    readonly property int cardPadY: Math.min(20, Math.max(14, Math.round((vH - 600) * 0.012) + 14))
-    readonly property int cardPadX: Math.min(24, Math.max(18, Math.round((downloadScroll.width - 1000) * 0.012) + 18))
-    readonly property int contentMaxW: Math.min(downloadScroll.availableWidth - 56, Math.max(880, Math.min(1120, Math.round(downloadScroll.availableWidth * 0.88))))
+    // Viewport-aware layout tokens matching SettingsPage architecture
+    readonly property bool isWide: downloadScroll.availableWidth >= 1020
+    readonly property int responsiveGap: {
+        var vH = downloadScroll.height;
+        if (vH <= 720) return Theme.panelGap;
+        return Math.min(22, Math.max(Theme.panelGap, Math.round(Theme.panelGap + (vH - 720) * 0.025)));
+    }
 
     function currentOptions(folderOverride) {
         var isAudio = modeSegment.selectedIndex === 1;
@@ -33,18 +34,19 @@ ScrollView {
             "fps60": fps60Check.checked,
             "audio_format": audioFormatCombo.currentText,
             "mp3_bitrate": mp3BitrateCombo.currentText,
-            "download_subs": subsCheck.checked,
-            "sub_langs": Settings.subLangs,
-            "embed_subs": Settings.embedSubs,
-            "auto_captions": Settings.autoCaptions,
-            "embed_thumbnail": Settings.embedThumbnail,
-            "embed_metadata": Settings.embedMetadata,
-            "sponsorblock": Settings.sponsorblock,
+            "download_subs": subsCheck.checked || advSubsCheck.checked,
+            "sub_langs": advSubLangsInput.text.trim() || Settings.subLangs,
+            "embed_subs": advEmbedSubsCheck.checked,
+            "auto_captions": advAutoCaptionsCheck.checked,
+            "embed_thumbnail": advEmbedThumbCheck.checked,
+            "embed_metadata": advEmbedMetaCheck.checked,
+            "sponsorblock": advSponsorblockCheck.checked,
+            "sponsorblock_categories": advSponsorblockCategoriesInput.text.trim() || Settings.sponsorblockCategories,
             "output_folder": folderOverride || Settings.outputFolder,
             "referer": refererInput.text.trim(),
             "origin": originInput.text.trim(),
             "proxy": proxyInput.text.trim() || Settings.proxy,
-            "force_ipv4": ipv4Check.checked || Settings.forceIpv4,
+            "force_ipv4": Settings.forceIpv4,
             "custom_headers": customHeadersInput.text.trim(),
             "is_playlist": playlistCheck.checked,
             "playlist_start": parseInt(playlistStartField.text.trim()) || 1,
@@ -52,6 +54,10 @@ ScrollView {
             "trim_enabled": trimCheck.checked,
             "start_time": trimCheck.checked ? trimStartField.text.trim() : "",
             "end_time": trimCheck.checked ? trimEndField.text.trim() : "",
+            "cookie_source": Settings.cookieMode,
+            "cookie_profile": Settings.cookieProfile,
+            "output_template": Settings.outputTemplate,
+            "format_sort": Settings.formatSort,
             "use_custom_command": Settings.useCustomCommand,
             "custom_command": Settings.customCommand
         };
@@ -131,20 +137,23 @@ ScrollView {
 
     Item {
         width: downloadScroll.availableWidth
-        implicitHeight: mainLayout.implicitHeight + downloadScroll.topMarginPad * 2 + 16
+        implicitHeight: Math.max(mainLayout.implicitHeight + (downloadScroll.height > mainLayout.implicitHeight ? 0 : 32), downloadScroll.height)
 
         ColumnLayout {
             id: mainLayout
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: downloadScroll.topMarginPad
-            width: downloadScroll.contentMaxW
+            anchors.topMargin: {
+                var excess = downloadScroll.height - mainLayout.implicitHeight;
+                return excess > 20 ? Math.round(excess * 0.5) : 16;
+            }
+            width: Math.max(100, downloadScroll.availableWidth - 16)
             spacing: downloadScroll.responsiveGap
 
             // Page Header
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 2
+                spacing: 4
 
                 Label {
                     text: "Download Media"
@@ -156,7 +165,7 @@ ScrollView {
 
                 Label {
                     Layout.fillWidth: true
-                    text: "Capture high-fidelity media streams directly from supported sources."
+                    text: "Download media from supported sources with control over quality, format, network, and output."
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.bodySize
                     color: Theme.textDim
@@ -219,715 +228,855 @@ ScrollView {
                 }
             }
 
-            // Section 1: Media Source & Destination
-            Rectangle {
+            // Primary Workflow Grid (2-Column on Wide/Maximized, 1-Column on Narrow)
+            GridLayout {
                 Layout.fillWidth: true
-                implicitHeight: sourceCol.implicitHeight + 28
-                radius: Theme.cardRadius
-                color: Theme.card
-                border.width: 1
-                border.color: Theme.border
+                columns: downloadScroll.isWide ? 2 : 1
+                columnSpacing: Theme.panelGap
+                rowSpacing: downloadScroll.responsiveGap
 
-                ColumnLayout {
-                    id: sourceCol
-                    anchors.fill: parent
-                    anchors.margins: Theme.cardPadX
-                    spacing: 12
+                // Section 1: Media Source & Destination
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: downloadScroll.isWide
+                    implicitHeight: sourceCol.implicitHeight + 36
+                    radius: Theme.cardRadius
+                    color: Theme.card
+                    border.width: 1
+                    border.color: Theme.border
 
-                    RowLayout {
-                        spacing: 8
-                        Image {
-                            source: Qt.resolvedUrl("../../../assets/branding/v2icons/link-accent-32.png")
-                            Layout.preferredWidth: 14
-                            Layout.preferredHeight: 14
-                            fillMode: Image.PreserveAspectFit
-                            mipmap: true
-                        }
-                        Label {
-                            text: "MEDIA SOURCE & DESTINATION"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.microSize
-                            font.bold: true
-                            color: Theme.textDim
-                        }
-                    }
-
-                    // URL Input Field with Integrated Paste Pill
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: 44
-                        radius: Theme.controlRadius
-                        color: Theme.cardAlt
-                        border.width: urlInputInner.activeFocus ? 2 : 1
-                        border.color: urlInputInner.activeFocus ? Theme.focusRing : Theme.borderStrong
+                    ColumnLayout {
+                        id: sourceCol
+                        anchors.fill: parent
+                        anchors.margins: 18
+                        spacing: 12
 
                         RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 6
-                            spacing: 8
-
-                            TextInput {
-                                id: urlInputInner
-                                Layout.fillWidth: true
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.bodySize
-                                color: Theme.text
-                                selectByMouse: true
-                                clip: true
-
-                                Text {
-                                    anchors.fill: parent
-                                    text: "https://..."
+                            spacing: 10
+                            Image {
+                                source: Qt.resolvedUrl("../../../assets/branding/v2icons/link-accent-32.png")
+                                Layout.preferredWidth: 16
+                                Layout.preferredHeight: 16
+                                Layout.alignment: Qt.AlignVCenter
+                                fillMode: Image.PreserveAspectFit
+                                mipmap: true
+                            }
+                            ColumnLayout {
+                                spacing: 2
+                                Label {
+                                    text: "Media Source & Destination"
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.bodySize
-                                    color: Theme.textDisabled
-                                    visible: !urlInputInner.text && !urlInputInner.activeFocus
-                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: Theme.sectionTitleSize
+                                    font.bold: true
+                                    color: Theme.text
                                 }
+                                Label {
+                                    text: "Target media link and destination folder"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.microSize
+                                    color: Theme.textDim
+                                }
+                            }
+                        }
 
-                                Keys.onReturnPressed: downloadScroll.submit()
+                        // Field 1: Media URL
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            Label {
+                                text: "MEDIA URL"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.textDim
                             }
 
-                            VPrimaryButton {
-                                text: "Paste"
-                                Layout.preferredHeight: 32
-                                Layout.preferredWidth: 68
-                                onClicked: {
-                                    var clip = Controller.getClipboardText();
-                                    if (clip) {
-                                        urlInputInner.text = clip.trim();
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 38
+                                radius: Theme.controlRadius
+                                color: Theme.cardAlt
+                                border.width: urlInputInner.activeFocus ? 2 : 1
+                                border.color: urlInputInner.activeFocus ? Theme.focusRing : Theme.borderStrong
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 6
+                                    spacing: 8
+
+                                    TextInput {
+                                        id: urlInputInner
+                                        Layout.fillWidth: true
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.bodySize
+                                        color: Theme.text
+                                        selectByMouse: true
+                                        clip: true
+
+                                        Text {
+                                            anchors.fill: parent
+                                            text: "https://..."
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.bodySize
+                                            color: Theme.textDisabled
+                                            visible: !urlInputInner.text && !urlInputInner.activeFocus
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        Keys.onReturnPressed: downloadScroll.submit()
+                                    }
+
+                                    VPrimaryButton {
+                                        text: "Paste"
+                                        Layout.preferredHeight: 28
+                                        Layout.preferredWidth: 64
+                                        onClicked: {
+                                            var clip = Controller.getClipboardText();
+                                            if (clip) {
+                                                urlInputInner.text = clip.trim();
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // Save Location Row
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Label {
-                            text: "Save Location:"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.bodySize
-                            font.bold: true
-                            color: Theme.text
-                        }
-
-                        Rectangle {
+                        // Field 2: Save Location
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            implicitHeight: 36
-                            radius: Theme.controlRadius
-                            color: Theme.cardAlt
-                            border.width: 1
-                            border.color: Theme.border
+                            spacing: 4
+
+                            Label {
+                                text: "SAVE LOCATION"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.textDim
+                            }
 
                             RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
+                                Layout.fillWidth: true
                                 spacing: 8
 
-                                Label {
+                                Rectangle {
                                     Layout.fillWidth: true
-                                    text: (typeof Settings !== "undefined" && Settings && Settings.destinationMode === "ask_every_time")
-                                          ? "(Ask destination every time)"
-                                          : ((typeof Settings !== "undefined" && Settings && Settings.outputFolder) ? Settings.outputFolder : "Default folder")
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.smallSize
-                                    color: (typeof Settings !== "undefined" && Settings && Settings.destinationMode === "ask_every_time") ? Theme.accentHover : Theme.textMuted
-                                    elide: Text.ElideMiddle
-                                }
-                            }
-                        }
+                                    implicitHeight: 38
+                                    radius: Theme.controlRadius
+                                    color: Theme.cardAlt
+                                    border.width: 1
+                                    border.color: Theme.border
 
-                        VSecondaryButton {
-                            text: "Browse"
-                            Layout.preferredHeight: 36
-                            onClicked: browseFolderDialog.open()
-                        }
-                    }
-                }
-            }
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 12
+                                        anchors.rightMargin: 12
+                                        spacing: 8
 
-            // Section 2: Output Configuration (Video Stream vs Audio Only)
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: configCol.implicitHeight + 28
-                radius: Theme.cardRadius
-                color: Theme.card
-                border.width: 1
-                border.color: Theme.border
-
-                ColumnLayout {
-                    id: configCol
-                    anchors.fill: parent
-                    anchors.margins: Theme.cardPadX
-                    spacing: 12
-
-                    RowLayout {
-                        spacing: 8
-                        Image {
-                            source: Qt.resolvedUrl("../../../assets/branding/v2icons/gear-accent-32.png")
-                            Layout.preferredWidth: 14
-                            Layout.preferredHeight: 14
-                            fillMode: Image.PreserveAspectFit
-                            mipmap: true
-                        }
-                        Label {
-                            text: "OUTPUT CONFIGURATION"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.microSize
-                            font.bold: true
-                            color: Theme.textDim
-                        }
-                    }
-
-                    VSegmentedButton {
-                        id: modeSegment
-                        options: ["Video", "Audio"]
-                        selectedIndex: 0
-                    }
-
-                    // Video Options Grid
-                    GridLayout {
-                        visible: modeSegment.selectedIndex === 0
-                        Layout.fillWidth: true
-                        columns: downloadScroll.availableWidth > 680 ? 2 : 1
-                        columnSpacing: 18
-                        rowSpacing: 8
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 4
-
-                            Label {
-                                text: "TARGET QUALITY"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.microSize
-                                font.bold: true
-                                color: Theme.textDim
-                            }
-
-                            VComboBox {
-                                id: qualityCombo
-                                Layout.fillWidth: true
-                                model: [
-                                    "Best Available",
-                                    "8K (4320p)",
-                                    "4K (2160p)",
-                                    "1440p (2K)",
-                                    "1080p (Full HD)",
-                                    "720p (HD)",
-                                    "480p (SD)",
-                                    "360p"
-                                ]
-                                currentIndex: 0
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 4
-
-                            Label {
-                                text: "FRAME RATE & SUBTITLES"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.microSize
-                                font.bold: true
-                                color: Theme.textDim
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 14
-
-                                VCheckBox {
-                                    id: fps60Check
-                                    text: "Prefer 60 FPS"
-                                    checked: true
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: (typeof Settings !== "undefined" && Settings && Settings.destinationMode === "ask_every_time")
+                                                  ? "(Ask destination every time)"
+                                                  : ((typeof Settings !== "undefined" && Settings && Settings.outputFolder) ? Settings.outputFolder : "Default folder")
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.smallSize
+                                            color: (typeof Settings !== "undefined" && Settings && Settings.destinationMode === "ask_every_time") ? Theme.accentHover : Theme.textMuted
+                                            elide: Text.ElideMiddle
+                                        }
+                                    }
                                 }
 
-                                VCheckBox {
-                                    id: subsCheck
-                                    text: "Download Subtitles"
-                                    checked: false
+                                VSecondaryButton {
+                                    text: "Browse"
+                                    Layout.preferredHeight: 38
+                                    Layout.preferredWidth: 80
+                                    onClicked: browseFolderDialog.open()
                                 }
-                            }
-                        }
-                    }
-
-                    // Audio Options Grid (MP3 with bitrate, Opus, WAV)
-                    GridLayout {
-                        visible: modeSegment.selectedIndex === 1
-                        Layout.fillWidth: true
-                        columns: downloadScroll.availableWidth > 680 ? 2 : 1
-                        columnSpacing: 18
-                        rowSpacing: 8
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 4
-
-                            Label {
-                                text: "AUDIO FORMAT"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.microSize
-                                font.bold: true
-                                color: Theme.textDim
-                            }
-
-                            VComboBox {
-                                id: audioFormatCombo
-                                Layout.fillWidth: true
-                                model: [
-                                    "MP3",
-                                    "Opus (High Efficiency)",
-                                    "WAV (Uncompressed PCM)"
-                                ]
-                                currentIndex: 0
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            visible: audioFormatCombo.currentIndex === 0
-                            spacing: 4
-
-                            Label {
-                                text: "MP3 BITRATE"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.microSize
-                                font.bold: true
-                                color: Theme.textDim
-                            }
-
-                            VComboBox {
-                                id: mp3BitrateCombo
-                                Layout.fillWidth: true
-                                model: [
-                                    "320 kbps (Best)",
-                                    "256 kbps",
-                                    "192 kbps (Standard)",
-                                    "128 kbps"
-                                ]
-                                currentIndex: 0
                             }
                         }
                     }
                 }
-            }
 
-            // Section 3: Advanced Network & Custom Headers (Android 4.5.2 Collapsible Header Card)
-            Rectangle {
-                id: headersCard
-                objectName: "headersCard"
-                property bool isExpanded: false
-                Layout.fillWidth: true
-                implicitHeight: headersCol.implicitHeight + 20
-                radius: Theme.cardRadius
-                color: Theme.card
-                border.width: 1
-                border.color: isExpanded ? Theme.accentHover : Theme.border
+                // Section 2: Output Configuration (Video Stream vs Audio Only)
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: downloadScroll.isWide
+                    implicitHeight: configCol.implicitHeight + 36
+                    radius: Theme.cardRadius
+                    color: Theme.card
+                    border.width: 1
+                    border.color: Theme.border
 
-                ColumnLayout {
-                    id: headersCol
-                    anchors.fill: parent
-                    anchors.margins: Theme.cardPadX
-                    spacing: 12
-
-                    // Interactive Collapsible Header Row
-                    Item {
-                        Layout.fillWidth: true
-                        implicitHeight: 40
-
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: -4
-                            radius: Theme.controlRadius
-                            color: headerMouse.containsMouse ? Theme.surfaceHover : "transparent"
-                        }
+                    ColumnLayout {
+                        id: configCol
+                        anchors.fill: parent
+                        anchors.margins: 18
+                        spacing: 12
 
                         RowLayout {
-                            anchors.fill: parent
                             spacing: 10
-
                             Image {
                                 source: Qt.resolvedUrl("../../../assets/branding/v2icons/gear-accent-32.png")
                                 Layout.preferredWidth: 16
                                 Layout.preferredHeight: 16
+                                Layout.alignment: Qt.AlignVCenter
                                 fillMode: Image.PreserveAspectFit
                                 mipmap: true
                             }
-
                             ColumnLayout {
-                                Layout.fillWidth: true
                                 spacing: 2
-
                                 Label {
-                                    text: "ADVANCED NETWORK & HEADERS"
+                                    text: "Output Configuration"
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.smallSize
+                                    font.pixelSize: Theme.sectionTitleSize
                                     font.bold: true
                                     color: Theme.text
                                 }
-
                                 Label {
-                                    text: "HTTP Referer, Origin, Proxy, IPv4, and custom request headers"
+                                    text: "Select media format, resolution, and stream preferences"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.microSize
                                     color: Theme.textDim
                                 }
                             }
+                        }
 
-                            // Rotating Chevron Indicator
+                        // Field 1: Download Mode
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
                             Label {
-                                text: headersCard.isExpanded ? "▲" : "▼"
+                                text: "DOWNLOAD MODE"
                                 font.family: Theme.fontFamily
-                                font.pixelSize: Theme.smallSize
+                                font.pixelSize: Theme.microSize
                                 font.bold: true
-                                color: Theme.accent
+                                color: Theme.textDim
+                            }
+
+                            VSegmentedButton {
+                                id: modeSegment
+                                options: ["Video", "Audio"]
+                                selectedIndex: 0
                             }
                         }
 
-                        MouseArea {
-                            id: headerMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: headersCard.isExpanded = !headersCard.isExpanded
-                        }
-                    }
-
-                    // Collapsible Content
-                    ColumnLayout {
-                        visible: headersCard.isExpanded
-                        Layout.fillWidth: true
-                        spacing: 12
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 1
-                            color: Theme.border
-                        }
-
-                        // Network Directives Grid
+                        // Video Options Grid
                         GridLayout {
+                            visible: modeSegment.selectedIndex === 0
                             Layout.fillWidth: true
                             columns: downloadScroll.availableWidth > 680 ? 2 : 1
-                            columnSpacing: 14
+                            columnSpacing: 16
                             rowSpacing: 8
 
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 2
+                                spacing: 4
+
                                 Label {
-                                    text: "Referer URL:"
+                                    text: "TARGET QUALITY"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.microSize
                                     font.bold: true
-                                    color: Theme.textMuted
+                                    color: Theme.textDim
                                 }
-                                VTextField {
-                                    id: refererInput
+
+                                VComboBox {
+                                    id: qualityCombo
                                     Layout.fillWidth: true
-                                    placeholderText: "https://example.com/page"
+                                    model: [
+                                        "Best Available",
+                                        "8K (4320p)",
+                                        "4K (2160p)",
+                                        "1440p (2K)",
+                                        "1080p (Full HD)",
+                                        "720p (HD)",
+                                        "480p (SD)",
+                                        "360p"
+                                    ]
+                                    currentIndex: 0
                                 }
                             }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 2
-                                Label {
-                                    text: "Origin URL:"
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.microSize
-                                    font.bold: true
-                                    color: Theme.textMuted
-                                }
-                                VTextField {
-                                    id: originInput
-                                    Layout.fillWidth: true
-                                    placeholderText: "https://example.com"
-                                }
-                            }
+                                spacing: 4
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
                                 Label {
-                                    text: "Custom Proxy (HTTP/SOCKS5):"
+                                    text: "FRAME RATE & SUBTITLES"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.microSize
                                     font.bold: true
-                                    color: Theme.textMuted
+                                    color: Theme.textDim
                                 }
-                                VTextField {
-                                    id: proxyInput
-                                    Layout.fillWidth: true
-                                    placeholderText: (typeof Settings !== "undefined" && Settings && Settings.proxy) ? Settings.proxy : "http://user:pass@host:port"
-                                }
-                            }
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
-                                Label {
-                                    text: "Network Protocol Policy:"
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.microSize
-                                    font.bold: true
-                                    color: Theme.textMuted
-                                }
-                                VCheckBox {
-                                    id: ipv4Check
-                                    text: "Force IPv4 Resolution"
-                                    checked: (typeof Settings !== "undefined" && Settings && Settings.forceIpv4)
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 14
+
+                                    VCheckBox {
+                                        id: fps60Check
+                                        text: "Prefer 60 FPS"
+                                        checked: true
+                                    }
+
+                                    VCheckBox {
+                                        id: subsCheck
+                                        text: "Subtitles"
+                                        checked: false
+                                    }
                                 }
                             }
                         }
 
-                        // Custom Headers Multiline Field
-                        ColumnLayout {
+                        // Audio Options Grid
+                        GridLayout {
+                            visible: modeSegment.selectedIndex === 1
                             Layout.fillWidth: true
-                            spacing: 4
-                            Label {
-                                text: "Custom HTTP Headers (Name: Value per line):"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.microSize
-                                font.bold: true
-                                color: Theme.textMuted
-                            }
-                            Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: 68
-                                radius: Theme.controlRadius
-                                color: Theme.cardAlt
-                                border.width: customHeadersInput.activeFocus ? 2 : 1
-                                border.color: customHeadersInput.activeFocus ? Theme.focusRing : Theme.border
+                            columns: downloadScroll.availableWidth > 680 ? 2 : 1
+                            columnSpacing: 16
+                            rowSpacing: 8
 
-                                ScrollView {
-                                    anchors.fill: parent
-                                    anchors.margins: 6
-                                    TextArea {
-                                        id: customHeadersInput
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: Theme.smallSize
-                                        color: Theme.text
-                                        placeholderText: "X-Custom-Header: value\nAccept-Language: en-US"
-                                        wrapMode: Text.WordWrap
-                                    }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                Label {
+                                    text: "AUDIO FORMAT"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.microSize
+                                    font.bold: true
+                                    color: Theme.textDim
+                                }
+
+                                VComboBox {
+                                    id: audioFormatCombo
+                                    Layout.fillWidth: true
+                                    model: [
+                                        "best",
+                                        "mp3",
+                                        "m4a",
+                                        "flac",
+                                        "opus",
+                                        "wav",
+                                        "aac"
+                                    ]
+                                    currentIndex: 0
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                visible: audioFormatCombo.currentIndex === 0 || audioFormatCombo.currentText === "mp3"
+                                spacing: 4
+
+                                Label {
+                                    text: "MP3 BITRATE"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.microSize
+                                    font.bold: true
+                                    color: Theme.textDim
+                                }
+
+                                VComboBox {
+                                    id: mp3BitrateCombo
+                                    Layout.fillWidth: true
+                                    model: [
+                                        "320 kbps (Best)",
+                                        "256 kbps",
+                                        "192 kbps (Standard)",
+                                        "128 kbps"
+                                    ]
+                                    currentIndex: 0
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // Section 4: Playlist Scope & Trimming (Android 4.5.2 Collapsible Header Card)
+            // Section 3: ONE Unified Expandable Advanced Options Section
             Rectangle {
-                id: playlistCard
-                objectName: "playlistCard"
+                id: advancedOptionsCard
+                objectName: "advancedOptionsCard"
                 property bool isExpanded: false
                 Layout.fillWidth: true
-                implicitHeight: playlistScopeCol.implicitHeight + 20
+                Layout.columnSpan: downloadScroll.isWide ? 2 : 1
+                implicitHeight: isExpanded ? (advancedCol.implicitHeight + 36) : (advHeaderRow.implicitHeight + 28)
                 radius: Theme.cardRadius
                 color: Theme.card
                 border.width: 1
-                border.color: isExpanded ? Theme.accentHover : Theme.border
+                border.color: advHeaderMouse.containsMouse ? Theme.borderStrong : Theme.border
+
+                Behavior on border.color { ColorAnimation { duration: 120 } }
 
                 ColumnLayout {
-                    id: playlistScopeCol
+                    id: advancedCol
                     anchors.fill: parent
-                    anchors.margins: Theme.cardPadX
-                    spacing: 12
+                    anchors.margins: 18
+                    spacing: 14
 
-                    // Interactive Collapsible Header Row
+                    // Interactive Collapsible Header Row (Clean, no inner grey hover fill)
                     Item {
+                        id: advHeaderRow
                         Layout.fillWidth: true
                         implicitHeight: 40
 
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: -4
-                            radius: Theme.controlRadius
-                            color: playlistMouse.containsMouse ? Theme.surfaceHover : "transparent"
-                        }
-
                         RowLayout {
                             anchors.fill: parent
-                            spacing: 10
+                            spacing: 12
 
                             Image {
-                                source: Qt.resolvedUrl("../../../assets/branding/v2icons/list-accent-32.png")
+                                source: Qt.resolvedUrl("../../../assets/branding/v2icons/sliders-accent-32.png")
                                 Layout.preferredWidth: 16
                                 Layout.preferredHeight: 16
+                                Layout.alignment: Qt.AlignVCenter
                                 fillMode: Image.PreserveAspectFit
                                 mipmap: true
                             }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
                                 spacing: 2
 
                                 Label {
-                                    text: "PLAYLIST & TRIMMING"
+                                    text: advancedOptionsCard.isExpanded ? "Hide Advanced Options" : "Advanced Options"
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.smallSize
+                                    font.pixelSize: Theme.sectionTitleSize
                                     font.bold: true
                                     color: Theme.text
                                 }
 
                                 Label {
-                                    text: "Playlist range extraction and ffmpeg time trimming"
+                                    text: "Quality ranking, subtitles, metadata, playlist scope, trimming, and network headers"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.microSize
                                     color: Theme.textDim
+                                    elide: Text.ElideRight
                                 }
                             }
 
                             // Rotating Chevron Indicator
                             Label {
-                                text: playlistCard.isExpanded ? "▲" : "▼"
+                                text: advancedOptionsCard.isExpanded ? "▲" : "▼"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.smallSize
                                 font.bold: true
-                                color: Theme.accent
+                                color: advHeaderMouse.containsMouse ? Theme.accentHover : Theme.accent
+                                Layout.alignment: Qt.AlignVCenter
                             }
                         }
 
                         MouseArea {
-                            id: playlistMouse
+                            id: advHeaderMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: playlistCard.isExpanded = !playlistCard.isExpanded
+                            onClicked: advancedOptionsCard.isExpanded = !advancedOptionsCard.isExpanded
                         }
                     }
 
-                    // Collapsible Content
+                    // Unified Collapsible Content (Organized Clean Sections with Subtle Separators)
                     ColumnLayout {
-                        visible: playlistCard.isExpanded
+                        visible: advancedOptionsCard.isExpanded
                         Layout.fillWidth: true
-                        spacing: 12
+                        spacing: 16
 
                         Rectangle {
                             Layout.fillWidth: true
-                            height: 1
+                            height: Theme.hairline
                             color: Theme.border
                         }
 
-                        RowLayout {
+                        // --- SECTION A: STREAM AND QUALITY RANKING ---
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 14
+                            spacing: 8
 
-                            VCheckBox {
-                                id: playlistCheck
-                                text: "Download entire playlist"
-                                checked: false
+                            Label {
+                                text: "STREAM & QUALITY RANKING"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.accentHover
                             }
 
-                            VCheckBox {
-                                id: trimCheck
-                                text: "Enable trim range"
-                                checked: false
+                            Label {
+                                text: "Multi-factor quality ranking prioritizes optimal resolution, stream bitrate, and codec efficiency without blind format preferences."
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.smallSize
+                                color: Theme.textDim
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
                             }
                         }
 
-                        RowLayout {
-                            visible: playlistCheck.checked
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 10
+                            height: Theme.hairline
+                            color: Theme.border
+                        }
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 0
-                                spacing: 4
+                        // --- SECTION B: SUBTITLES & CAPTIONS ---
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
 
-                                Label {
-                                    text: "START INDEX"
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.microSize
-                                    font.bold: true
-                                    color: Theme.textDim
-                                }
-
-                                VTextField {
-                                    id: playlistStartField
-                                    Layout.fillWidth: true
-                                    text: "1"
-                                    placeholderText: "1"
-                                }
+                            Label {
+                                text: "SUBTITLES & CAPTIONS"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.accentHover
                             }
 
-                            ColumnLayout {
+                            GridLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredWidth: 0
-                                spacing: 4
+                                columns: downloadScroll.availableWidth > 680 ? 2 : 1
+                                columnSpacing: 16
+                                rowSpacing: 8
 
-                                Label {
-                                    text: "END INDEX"
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.microSize
-                                    font.bold: true
-                                    color: Theme.textDim
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Label {
+                                        text: "SUBTITLE LANGUAGE REGEX"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: advSubLangsInput
+                                        Layout.fillWidth: true
+                                        text: Settings.subLangs
+                                        placeholderText: "en.*, ja, zh-Hans"
+                                    }
                                 }
 
-                                VTextField {
-                                    id: playlistEndField
+                                ColumnLayout {
                                     Layout.fillWidth: true
-                                    text: "last"
-                                    placeholderText: "last"
+                                    spacing: 6
+                                    VCheckBox {
+                                        id: advSubsCheck
+                                        text: "Download matching subtitles"
+                                        checked: subsCheck.checked
+                                        onToggled: subsCheck.checked = checked
+                                    }
+                                    VCheckBox {
+                                        id: advEmbedSubsCheck
+                                        text: "Embed subtitles into media container"
+                                        checked: Settings.embedSubs
+                                    }
+                                    VCheckBox {
+                                        id: advAutoCaptionsCheck
+                                        text: "Include automatically generated captions"
+                                        checked: Settings.autoCaptions
+                                    }
                                 }
                             }
                         }
 
-                        RowLayout {
-                            visible: trimCheck.checked
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 10
+                            height: Theme.hairline
+                            color: Theme.border
+                        }
 
-                            ColumnLayout {
+                        // --- SECTION C: METADATA & MEDIA FILTERS ---
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label {
+                                text: "METADATA & SPONSORBLOCK"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.accentHover
+                            }
+
+                            GridLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredWidth: 0
-                                spacing: 4
+                                columns: downloadScroll.availableWidth > 680 ? 2 : 1
+                                columnSpacing: 16
+                                rowSpacing: 8
 
-                                Label {
-                                    text: "START (HH:MM:SS)"
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.microSize
-                                    font.bold: true
-                                    color: Theme.textDim
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    VCheckBox {
+                                        id: advEmbedThumbCheck
+                                        text: "Embed thumbnail as album/cover art"
+                                        checked: Settings.embedThumbnail
+                                    }
+                                    VCheckBox {
+                                        id: advEmbedMetaCheck
+                                        text: "Embed title, artist, and ID3 metadata"
+                                        checked: Settings.embedMetadata
+                                    }
+                                    VCheckBox {
+                                        id: advSponsorblockCheck
+                                        text: "Remove SponsorBlock advertisement segments"
+                                        checked: Settings.sponsorblock
+                                    }
                                 }
 
-                                VTextField {
-                                    id: trimStartField
+                                ColumnLayout {
                                     Layout.fillWidth: true
-                                    text: "00:00:00"
-                                    placeholderText: "00:00:00"
+                                    visible: advSponsorblockCheck.checked
+                                    spacing: 4
+                                    Label {
+                                        text: "SPONSORBLOCK CATEGORIES"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: advSponsorblockCategoriesInput
+                                        Layout.fillWidth: true
+                                        text: Settings.sponsorblockCategories
+                                        placeholderText: "sponsor,selfpromo,interaction"
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: Theme.hairline
+                            color: Theme.border
+                        }
+
+                        // --- SECTION D: PLAYLIST SCOPE & TIME TRIMMING ---
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label {
+                                text: "PLAYLIST SCOPE & TIME TRIMMING"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.accentHover
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 18
+
+                                VCheckBox {
+                                    id: playlistCheck
+                                    text: "Download entire playlist"
+                                    checked: false
+                                }
+
+                                VCheckBox {
+                                    id: trimCheck
+                                    text: "Enable trim range"
+                                    checked: false
                                 }
                             }
 
+                            RowLayout {
+                                visible: playlistCheck.checked
+                                Layout.fillWidth: true
+                                spacing: 14
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: 0
+                                    spacing: 4
+                                    Label {
+                                        text: "START INDEX"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: playlistStartField
+                                        Layout.fillWidth: true
+                                        text: "1"
+                                        placeholderText: "1"
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: 0
+                                    spacing: 4
+                                    Label {
+                                        text: "END INDEX"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: playlistEndField
+                                        Layout.fillWidth: true
+                                        text: "last"
+                                        placeholderText: "last"
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                visible: trimCheck.checked
+                                Layout.fillWidth: true
+                                spacing: 14
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: 0
+                                    spacing: 4
+                                    Label {
+                                        text: "START TIME (HH:MM:SS)"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: trimStartField
+                                        Layout.fillWidth: true
+                                        text: "00:00:00"
+                                        placeholderText: "00:00:00"
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.preferredWidth: 0
+                                    spacing: 4
+                                    Label {
+                                        text: "END TIME (HH:MM:SS)"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: trimEndField
+                                        Layout.fillWidth: true
+                                        text: "00:00:00"
+                                        placeholderText: "00:00:00"
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: Theme.hairline
+                            color: Theme.border
+                        }
+
+                        // --- SECTION E: NETWORK DIRECTIVES & CUSTOM HEADERS ---
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label {
+                                text: "NETWORK DIRECTIVES & CUSTOM HEADERS"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.microSize
+                                font.bold: true
+                                color: Theme.accentHover
+                            }
+
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: downloadScroll.availableWidth > 800 ? 3 : (downloadScroll.availableWidth > 540 ? 2 : 1)
+                                columnSpacing: 16
+                                rowSpacing: 10
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Label {
+                                        text: "Referer URL:"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: refererInput
+                                        Layout.fillWidth: true
+                                        placeholderText: "https://example.com/page"
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Label {
+                                        text: "Origin URL:"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: originInput
+                                        Layout.fillWidth: true
+                                        placeholderText: "https://example.com"
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Label {
+                                        text: "Proxy Override (For This Download):"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.microSize
+                                        font.bold: true
+                                        color: Theme.textDim
+                                    }
+                                    VTextField {
+                                        id: proxyInput
+                                        Layout.fillWidth: true
+                                        placeholderText: (typeof Settings !== "undefined" && Settings && Settings.proxy) ? Settings.proxy : "http://user:pass@host:port"
+                                    }
+                                }
+                            }
+
+                            // Custom Headers Multiline Field
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredWidth: 0
                                 spacing: 4
-
                                 Label {
-                                    text: "END (HH:MM:SS)"
+                                    text: "Custom HTTP Headers (Name: Value per line):"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.microSize
                                     font.bold: true
                                     color: Theme.textDim
                                 }
-
-                                VTextField {
-                                    id: trimEndField
+                                Rectangle {
                                     Layout.fillWidth: true
-                                    text: "00:00:00"
-                                    placeholderText: "00:00:00"
+                                    implicitHeight: 74
+                                    radius: Theme.controlRadius
+                                    color: Theme.cardAlt
+                                    border.width: customHeadersInput.activeFocus ? 2 : 1
+                                    border.color: customHeadersInput.activeFocus ? Theme.focusRing : Theme.border
+
+                                    ScrollView {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        TextArea {
+                                            id: customHeadersInput
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.smallSize
+                                            color: Theme.text
+                                            placeholderText: "X-Custom-Header: value\nAccept-Language: en-US"
+                                            wrapMode: Text.WordWrap
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -938,7 +1087,8 @@ ScrollView {
             // Primary Action: Add to Queue
             Item {
                 Layout.fillWidth: true
-                implicitHeight: 48
+                Layout.columnSpan: downloadScroll.isWide ? 2 : 1
+                implicitHeight: 46
 
                 VPrimaryButton {
                     anchors.fill: parent
@@ -947,8 +1097,11 @@ ScrollView {
                     onClicked: downloadScroll.submit()
                 }
             }
+        } // Close GridLayout
 
-            Item { Layout.preferredHeight: 12 }
+        Item {
+            Layout.preferredHeight: (downloadScroll.height <= mainLayout.implicitHeight + 20) ? 16 : 0
+        }
         }
     }
 }

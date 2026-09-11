@@ -14,62 +14,63 @@ QtObject {
                                          : "Space Mono"
 
     // Exact Authoritative VRKA Semantic Colors & AMOLED Surfaces
-    readonly property color bg:              isLight ? "#FFFFFF" : "#000000"
-    readonly property color sidebar:         isLight ? "#F7F7F8" : "#050505"
-    readonly property color card:            isLight ? "#FFFFFF" : "#08080B"
-    readonly property color cardAlt:         isLight ? "#F1F3F8" : "#0F0F14"
-    readonly property color surfaceElevated: isLight ? "#E8ECF4" : "#16161D"
-    readonly property color surfaceHover:    isLight ? "#DFE4EE" : "#1F1F2A"
-    readonly property color border:          isLight ? "#DCE1EC" : "#1C1C24"
-    readonly property color borderStrong:    isLight ? "#C5CCDC" : "#2E2E3C"
+    readonly property color bg:              isLight ? "#F8F8F8" : "#000000"
+    readonly property color sidebar:         isLight ? "#EDEDED" : "#070707"
+    readonly property color card:            isLight ? "#FFFFFF" : "#070707"
+    readonly property color cardAlt:         isLight ? "#F2F2F2" : "#0E0E0E"
+    readonly property color surfaceElevated: isLight ? "#E6E6E6" : "#141414"
+    readonly property color surfaceHover:    isLight ? "#DCDCDC" : "#1B1B1B"
+    readonly property color border:          isLight ? "#DFDFDF" : "#161616"
+    readonly property color borderStrong:    isLight ? "#C8C8C8" : "#262626"
 
-    // Subtle Translucent / Frosted Material Tokens (Material 0 - 4 & Android-inspired glass)
+    // Subtle Translucent / Frosted Material Tokens (Material 0 - 4 & Neutral Frosted Glass)
     readonly property color material0: bg
     readonly property color material1: sidebar
     readonly property color material2: card
     readonly property color material3: cardAlt
     readonly property color material4: surfaceElevated
-    readonly property color glassBg:      isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.88) : Qt.rgba(0.04, 0.02, 0.08, 0.85)
-    readonly property color glassBorder:  isLight ? Qt.rgba(0.86, 0.88, 0.93, 0.9) : Qt.rgba(0.20, 0.14, 0.32, 0.45)
+    readonly property color glassBg:      isLight ? Qt.rgba(0.96, 0.96, 0.96, 0.88) : Qt.rgba(0.04, 0.04, 0.04, 0.85)
+    readonly property color glassBorder:  isLight ? Qt.rgba(0.85, 0.85, 0.85, 0.8)  : Qt.rgba(0.16, 0.16, 0.16, 0.35)
     
-    // Genuinely Visible Frosted Sidebar Tokens
-    readonly property color sidebarGlassTop:    isLight ? Qt.rgba(0.98, 0.98, 1.0, 0.96) : Qt.rgba(0.07, 0.04, 0.12, 0.92)
-    readonly property color sidebarGlassMid:    isLight ? Qt.rgba(0.96, 0.96, 0.98, 0.94) : Qt.rgba(0.04, 0.02, 0.08, 0.94)
-    readonly property color sidebarGlassBottom: isLight ? Qt.rgba(0.93, 0.94, 0.97, 0.96) : Qt.rgba(0.02, 0.01, 0.05, 0.97)
-    readonly property color sidebarGlow:        isLight ? Qt.rgba(0.51, 0.25, 0.86, 0.05) : Qt.rgba(0.51, 0.25, 0.86, 0.14)
-    readonly property color sidebarHighlight:   isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.85) : Qt.rgba(0.70, 0.50, 0.98, 0.12)
-    readonly property color sidebarBorder:      isLight ? "#DCE1EC" : Qt.rgba(0.38, 0.22, 0.58, 0.38)
+    // Completely Neutral Floating Sidebar Island Tokens (R=G=B, Zero Purple/Blue/Lavender)
+    readonly property color sidebarBg:          isLight ? "#EDEDED" : "#0A0A0A"
+    readonly property color sidebarBorder:      isLight ? "#D8D8D8" : "#1A1A1A"
+    readonly property color sidebarHighlight:   isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.7) : Qt.rgba(1.0, 1.0, 1.0, 0.03)
+    readonly property color sidebarGlassTop:    isLight ? "#EDEDED" : "#0A0A0A"
+    readonly property color sidebarGlassMid:    isLight ? "#EDEDED" : "#0A0A0A"
+    readonly property color sidebarGlassBottom: isLight ? "#EDEDED" : "#0A0A0A"
+    readonly property int   sidebarRadius:      12
     
-    readonly property color titleBarBg:   isLight ? "#FFFFFF" : "#000000"
-    readonly property color titleBarBorder: isLight ? "#DCE1EC" : "transparent"
+    readonly property color titleBarBg:     isLight ? "#F8F8F8" : "#000000"
+    readonly property color titleBarBorder: isLight ? "#DFDFDF" : "transparent"
 
-    // VRKA Signature Accent (Refined purple)
+    // VRKA Signature Accent (Refined purple strictly for active controls, badges, and primary buttons)
     readonly property color accent:          "#8140DC"
     readonly property color accentHover:     "#9255E5"
     readonly property color accentPressed:   "#6E31C3"
-    readonly property color accentSoft:      isLight ? "#F1E8FC" : "#180D24"
-    readonly property color accentSoftHover: isLight ? "#E8D9FA" : "#241236"
+    readonly property color accentSoft:      isLight ? "#EEE6FC" : "#180D24"
+    readonly property color accentSoftHover: isLight ? "#E4D5FA" : "#241236"
     readonly property color focusRing:       "#9255E5"
 
     // Text hierarchy
     readonly property color text:         isLight ? "#111116" : "#FAF9FC"
-    readonly property color textMuted:    isLight ? "#4E5262" : "#C8C4CF"
-    readonly property color textDim:      isLight ? "#6E7488" : "#9893A4"
-    readonly property color textDisabled: isLight ? "#9BA1B4" : "#686472"
+    readonly property color textMuted:    isLight ? "#454350" : "#C8C4CF"
+    readonly property color textDim:      isLight ? "#6A6778" : "#9893A4"
+    readonly property color textDisabled: isLight ? "#9894A6" : "#686472"
     readonly property color textOnAccent: "#FFFFFF"
 
     // Status Semantics
-    readonly property color success:      "#2BCB77"
+    readonly property color success:      isLight ? "#16A34A" : "#2BCB77"
     readonly property color successSoft:  isLight ? "#EBF9F1" : "#0B2215"
-    readonly property color warning:      "#E7A93D"
-    readonly property color warningSoft:  isLight ? "#FDF6EB" : "#261905"
-    readonly property color error:        "#EF5A67"
-    readonly property color errorSoft:    isLight ? "#FDEEF0" : "#2B0B10"
+    readonly property color warning:      isLight ? "#D97706" : "#E7A93D"
+    readonly property color warningSoft:  isLight ? "#FEF3C7" : "#261905"
+    readonly property color error:        isLight ? "#DC2626" : "#EF5A67"
+    readonly property color errorSoft:    isLight ? "#FEE2E2" : "#2B0B10"
 
     // Spacing & geometry system
-    readonly property int sidebarWidth:         240
+    readonly property int sidebarWidth:         232
     readonly property int titleBarHeight:       38
-    readonly property int navButtonHeight:      44
+    readonly property int navButtonHeight:      38
     readonly property int controlHeight:        40
     readonly property int controlRadius:        8
     readonly property int cardRadius:           12

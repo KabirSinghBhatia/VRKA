@@ -13,6 +13,7 @@ datas = []
 branding_dir = project_dir / "assets" / "branding"
 datas.append((str(branding_dir / "vrka.ico"), "assets/branding"))
 datas.append((str(branding_dir / "vrka-wolf-256.png"), "assets/branding"))
+datas.append((str(branding_dir / "vrka-wolf-16.png"), "assets/branding"))
 for _p in (branding_dir / "nav").glob("*-32.png"):
     datas.append((str(_p), "assets/branding/nav"))
 for _p in (branding_dir / "v2icons").glob("*-32.png"):

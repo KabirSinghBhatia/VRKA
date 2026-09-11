@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQuick.Effects
 import ".."
 
 Button {
@@ -40,14 +41,29 @@ Button {
             anchors.centerIn: parent
             spacing: 8
 
-            Image {
+            Item {
                 visible: root.iconName !== ""
-                source: root.iconName !== "" ? Qt.resolvedUrl("../../../assets/branding/v2icons/" + root.iconName + "-accent-32.png") : ""
                 Layout.preferredWidth: 16
                 Layout.preferredHeight: 16
                 Layout.alignment: Qt.AlignVCenter
-                fillMode: Image.PreserveAspectFit
-                mipmap: true
+
+                Image {
+                    id: btnRawIcon
+                    anchors.fill: parent
+                    source: root.iconName !== "" ? Qt.resolvedUrl("../../../assets/branding/v2icons/" + root.iconName + "-accent-32.png") : ""
+                    fillMode: Image.PreserveAspectFit
+                    mipmap: true
+                    visible: false
+                }
+
+                MultiEffect {
+                    anchors.fill: btnRawIcon
+                    source: btnRawIcon
+                    colorization: 1.0
+                    colorizationColor: Theme.textOnAccent
+                    brightness: 1.0
+                    opacity: root.enabled ? 1.0 : 0.6
+                }
             }
 
             Text {

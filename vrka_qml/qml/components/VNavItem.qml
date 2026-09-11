@@ -20,25 +20,22 @@ AbstractButton {
     hoverEnabled: true
 
     background: Rectangle {
-        radius: Theme.controlRadius
-        color: root.checked ? Theme.accentSoft
-             : root.hovered ? (Theme.isLight ? Theme.surfaceHover : Theme.surfaceElevated)
-             : "transparent"
+        color: "transparent"
         border.width: root.visualFocus ? 1 : 0
         border.color: Theme.focusRing
 
-        // Left accent indicator bar
+        // Small 3px vertical accent indicator (only visual indicator for active state)
         Rectangle {
             anchors.left: parent.left
-            anchors.leftMargin: 4
+            anchors.leftMargin: 2
             anchors.verticalCenter: parent.verticalCenter
             width: 3
-            height: root.checked ? 20 : 0
+            height: root.checked ? 18 : 0
             radius: 1.5
             color: Theme.accent
             visible: root.checked
 
-            Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         }
     }
 
@@ -78,7 +75,7 @@ AbstractButton {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.bodySize
             font.bold: root.checked
-            color: root.checked ? Theme.text : root.hovered ? Theme.text : Theme.textMuted
+            color: root.checked ? Theme.accent : (root.hovered ? Theme.text : Theme.textMuted)
         }
 
         // Active Badge

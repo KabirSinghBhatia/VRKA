@@ -68,6 +68,20 @@ class QueueController(QObject):
                 model.remove_task(tid)
 
     # ------------------------------------------------------------------
+    # Shared aliases (called from TaskDelegate.qml and HistoryDelegate.qml)
+    # ------------------------------------------------------------------
+
+    @Slot(str)
+    def openFolder(self, path: str) -> None:
+        """Alias used by TaskDelegate and HistoryDelegate for folder open."""
+        self.openHistoryPath(path)
+
+    @Slot(str)
+    def redownload(self, url: str) -> None:
+        """Alias used by HistoryDelegate for re-download action."""
+        self.redownloadFromHistory(url)
+
+    # ------------------------------------------------------------------
     # History actions
     # ------------------------------------------------------------------
 

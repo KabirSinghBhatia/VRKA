@@ -13,33 +13,26 @@ Rectangle {
     height: Theme.titleBarHeight
     color: Theme.titleBarBg
 
-    Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: Theme.hairline
-        color: Theme.titleBarBorder
-    }
-
     RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        // Left Branding Lockup
+        // Left Branding (Small Icon + Title VRKA)
         Item {
-            Layout.preferredWidth: Theme.sidebarWidth
-            Layout.fillHeight: true
+            Layout.preferredHeight: Theme.titleBarHeight
+            Layout.preferredWidth: titleRow.implicitWidth + 24
 
             RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                spacing: 10
+                id: titleRow
+                anchors.left: parent.left
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
 
                 Image {
-                    source: Qt.resolvedUrl("../../../assets/branding/vrka-wolf-256.png")
-                    Layout.preferredWidth: 26
-                    Layout.preferredHeight: 26
+                    source: Qt.resolvedUrl("../../../assets/branding/vrka-wolf-16.png")
+                    Layout.preferredWidth: 16
+                    Layout.preferredHeight: 16
                     Layout.alignment: Qt.AlignVCenter
                     fillMode: Image.PreserveAspectFit
                     mipmap: true
@@ -48,32 +41,30 @@ Rectangle {
                 Label {
                     text: "VRKA"
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.bodySize
+                    font.pixelSize: 12
                     font.bold: true
                     color: Theme.text
                     Layout.alignment: Qt.AlignVCenter
                 }
+            }
 
-                Rectangle {
-                    Layout.preferredWidth: 38
-                    Layout.preferredHeight: 18
-                    Layout.alignment: Qt.AlignVCenter
-                    radius: 9
-                    color: Theme.accentSoft
-                    border.width: 1
-                    border.color: Theme.accent
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: "v" + APP_DISPLAY_VERSION
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 10
-                        font.bold: true
-                        color: Theme.accent
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton
+                onPressed: (mouse) => {
+                    if (mouse.button === Qt.LeftButton && root.targetWindow) {
+                        root.targetWindow.startSystemMove()
                     }
                 }
-
-                Item { Layout.fillWidth: true }
+                onDoubleClicked: (mouse) => {
+                    if (mouse.button === Qt.LeftButton && root.targetWindow) {
+                        if (root.targetWindow.visibility === Window.Maximized) {
+                            root.targetWindow.showNormal()
+                        } else {
+                            root.targetWindow.showMaximized()
+                        }
+                    }
+                }
             }
         }
 

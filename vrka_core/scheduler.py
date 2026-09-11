@@ -1,4 +1,4 @@
-"""Persistent single-worker FIFO scheduler for the VRKA 4.0.0 engine."""
+"""Persistent single-worker FIFO scheduler for the VRKA 4.5.0 engine."""
 
 from __future__ import annotations
 

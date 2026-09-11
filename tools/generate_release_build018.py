@@ -35,7 +35,7 @@ import zipfile
 import pgpy
 from pgpy.constants import CompressionAlgorithm, HashAlgorithm, KeyFlags, PubKeyAlgorithm, SymmetricKeyAlgorithm
 
-PROJECT_ROOT = Path("F:/Projects/VRKA/VRKA-public-repo").resolve()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RELEASE_DIR = PROJECT_ROOT / "releases" / "VRKA-4.5.0-Build-018"
 PORTABLE_SOURCE = PROJECT_ROOT / "VRKA-portable"
 

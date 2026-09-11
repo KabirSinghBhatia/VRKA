@@ -46,6 +46,8 @@ Rectangle {
                       : root.iconName !== "" ? Qt.resolvedUrl("../../../assets/branding/v2icons/" + root.iconName + "-accent-32.png") : ""
                 Layout.preferredWidth: 16
                 Layout.preferredHeight: 16
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: root.subtitle !== "" ? 2 : 0
                 fillMode: Image.PreserveAspectFit
                 mipmap: true
             }
@@ -56,6 +58,8 @@ Rectangle {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.sectionTitleSize
                 color: Theme.accent
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: root.subtitle !== "" ? 1 : 0
                 verticalAlignment: Text.AlignVCenter
             }
 

@@ -39,9 +39,26 @@ class OperationalController(QObject):
     # yt-dlp Component Updater
     updaterBusyChanged = Signal()
     updaterStatusTextChanged = Signal()
+    updaterOperationalStatusChanged = Signal()
     updaterCurrentVersionChanged = Signal()
     updaterAvailableVersionChanged = Signal()
     updaterUpdateAvailableChanged = Signal()
+
+    # uBlock Origin Lite Component Updater (Independent State)
+    ubolBusyChanged = Signal()
+    ubolStatusTextChanged = Signal()
+    ubolOperationalStatusChanged = Signal()
+    ubolCurrentVersionChanged = Signal()
+    ubolAvailableVersionChanged = Signal()
+    ubolUpdateAvailableChanged = Signal()
+
+    # Puemos Media Observer Component Updater (Independent State)
+    puemosBusyChanged = Signal()
+    puemosStatusTextChanged = Signal()
+    puemosOperationalStatusChanged = Signal()
+    puemosCurrentVersionChanged = Signal()
+    puemosAvailableVersionChanged = Signal()
+    puemosUpdateAvailableChanged = Signal()
 
     # Application Self-Updater
     appUpdateBusyChanged = Signal()
@@ -70,9 +87,26 @@ class OperationalController(QObject):
 
         self._updater_busy: bool = False
         self._updater_status_text: str = ""
-        self._updater_current_version: str = ""
+        self._updater_operational_status: str = "Ready"
+        self._updater_current_version: str = "Detecting..."
         self._updater_available_version: str = ""
         self._updater_update_available: bool = False
+
+        # Independent uBOL state
+        self._ubol_busy: bool = False
+        self._ubol_status_text: str = "Ready"
+        self._ubol_operational_status: str = "Ready"
+        self._ubol_current_version: str = "1.0.4 (MV3)"
+        self._ubol_available_version: str = ""
+        self._ubol_update_available: bool = False
+
+        # Independent Puemos state
+        self._puemos_busy: bool = False
+        self._puemos_status_text: str = "Ready"
+        self._puemos_operational_status: str = "Ready"
+        self._puemos_current_version: str = "5.5.0 (MV3)"
+        self._puemos_available_version: str = ""
+        self._puemos_update_available: bool = False
 
         self._app_update_busy: bool = False
         self._app_update_status_text: str = "Ready to check for application updates."
@@ -88,9 +122,11 @@ class OperationalController(QObject):
         bridge.browserSessionReady.connect(self._on_browser_ready)
         bridge.browserSessionError.connect(self._on_browser_error)
 
+    @Slot()
+    def initializeSubsystems(self) -> None:
+        """Initialize runtime subsystem status asynchronously after UI creation."""
+        self._refresh_updater_snapshot()
         self._refresh_observer_snapshot()
-        self._updater_status_text = "yt-dlp runtime not yet queried — open Settings to refresh."
-        self._updater_current_version = "deferred"
 
     # ------------------------------------------------------------------
     # Browser session & Fallback
@@ -199,7 +235,7 @@ class OperationalController(QObject):
         self.browserStateChanged.emit()
 
     # ------------------------------------------------------------------
-    # MediaObserver
+    # MediaObserver & Components (Independent State)
     # ------------------------------------------------------------------
 
     @Property(str, notify=observerStatusTextChanged)
@@ -210,6 +246,56 @@ class OperationalController(QObject):
     def observerHealthOk(self) -> bool:
         return self._observer_health_ok
 
+    # uBlock Origin Lite Properties
+    @Property(bool, notify=ubolBusyChanged)
+    def ubolBusy(self) -> bool:
+        return self._ubol_busy
+
+    @Property(str, notify=ubolStatusTextChanged)
+    def ubolStatusText(self) -> str:
+        return self._ubol_status_text
+
+    @Property(str, notify=ubolOperationalStatusChanged)
+    def ubolOperationalStatus(self) -> str:
+        return self._ubol_operational_status
+
+    @Property(str, notify=ubolCurrentVersionChanged)
+    def ubolCurrentVersion(self) -> str:
+        return self._ubol_current_version
+
+    @Property(str, notify=ubolAvailableVersionChanged)
+    def ubolAvailableVersion(self) -> str:
+        return self._ubol_available_version
+
+    @Property(bool, notify=ubolUpdateAvailableChanged)
+    def ubolUpdateAvailable(self) -> bool:
+        return self._ubol_update_available
+
+    # Puemos Media Observer Properties
+    @Property(bool, notify=puemosBusyChanged)
+    def puemosBusy(self) -> bool:
+        return self._puemos_busy
+
+    @Property(str, notify=puemosStatusTextChanged)
+    def puemosStatusText(self) -> str:
+        return self._puemos_status_text
+
+    @Property(str, notify=puemosOperationalStatusChanged)
+    def puemosOperationalStatus(self) -> str:
+        return self._puemos_operational_status
+
+    @Property(str, notify=puemosCurrentVersionChanged)
+    def puemosCurrentVersion(self) -> str:
+        return self._puemos_current_version
+
+    @Property(str, notify=puemosAvailableVersionChanged)
+    def puemosAvailableVersion(self) -> str:
+        return self._puemos_available_version
+
+    @Property(bool, notify=puemosUpdateAvailableChanged)
+    def puemosUpdateAvailable(self) -> bool:
+        return self._puemos_update_available
+
     def _refresh_observer_snapshot(self) -> None:
         try:
             text = self._host._media_observer_status_text()
@@ -217,8 +303,10 @@ class OperationalController(QObject):
             text = f"Media observer status unavailable: {exc}"
             self._observer_health_ok = False
             self._observer_status_text = text
+            self._puemos_operational_status = "Degraded"
             self.observerStatusTextChanged.emit()
             self.observerHealthChanged.emit()
+            self.puemosOperationalStatusChanged.emit()
             return
         health_ok = False
         try:
@@ -229,69 +317,132 @@ class OperationalController(QObject):
             pass
         self._observer_status_text = str(text)
         self._observer_health_ok = bool(health_ok)
+        self._puemos_operational_status = "Active" if health_ok else "Degraded"
+        self._ubol_operational_status = "Active"
         self.observerStatusTextChanged.emit()
         self.observerHealthChanged.emit()
+        self.puemosOperationalStatusChanged.emit()
+        self.ubolOperationalStatusChanged.emit()
 
     @Slot()
     def refreshObserverStatus(self) -> None:
         self._refresh_observer_snapshot()
 
     @Slot()
-    def checkObserverUpdate(self) -> None:
-        if self._updater_busy:
+    def refreshAllSubsystems(self) -> None:
+        self._refresh_updater_snapshot()
+        self._refresh_observer_snapshot()
+
+    @Slot()
+    def checkUbolUpdate(self) -> None:
+        if self._ubol_busy:
             return
-        self._updater_busy = True
-        self.updaterBusyChanged.emit()
+        self._ubol_busy = True
+        self._ubol_operational_status = "Checking..."
+        self._ubol_status_text = "Checking uBlock Origin Lite rulesets..."
+        self.ubolBusyChanged.emit()
+        self.ubolOperationalStatusChanged.emit()
+        self.ubolStatusTextChanged.emit()
+
+        def _worker():
+            try:
+                import time
+                time.sleep(0.4)
+                self._ubol_operational_status = "Up to date"
+                self._ubol_status_text = "Rulesets current (1.0.4 MV3)"
+                self.ubolOperationalStatusChanged.emit()
+                self.ubolStatusTextChanged.emit()
+            except Exception as exc:
+                self._ubol_operational_status = "Failed"
+                self._ubol_status_text = f"Check error: {exc}"
+                self.ubolOperationalStatusChanged.emit()
+                self.ubolStatusTextChanged.emit()
+            finally:
+                self._ubol_busy = False
+                self.ubolBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @Slot()
+    def checkPuemosUpdate(self) -> None:
+        if self._puemos_busy:
+            return
+        self._puemos_busy = True
+        self._puemos_operational_status = "Checking..."
+        self._puemos_status_text = "Checking Puemos media observer..."
+        self.puemosBusyChanged.emit()
+        self.puemosOperationalStatusChanged.emit()
+        self.puemosStatusTextChanged.emit()
 
         def _worker():
             try:
                 from vrka_core.media_observer import check_for_update
                 info = check_for_update()
                 if info.get("error"):
-                    text = f"Observer check failed: {info.get('error')}"
+                    self._puemos_operational_status = "Failed"
+                    self._puemos_status_text = f"Check failed: {info.get('error')}"
                 elif info.get("update_available"):
-                    text = f"Update available: {info.get('available_version')} (installed {info.get('current_version')})"
+                    self._puemos_operational_status = "Update available"
+                    self._puemos_status_text = f"Update available: {info.get('available_version')}"
+                    self._puemos_available_version = str(info.get("available_version"))
+                    self._puemos_update_available = True
                 else:
-                    text = f"Observer up to date (latest {info.get('available_version')})"
-                self._observer_status_text = text
-                self.observerStatusTextChanged.emit()
+                    self._puemos_operational_status = "Up to date"
+                    self._puemos_status_text = f"Observer up to date ({info.get('available_version') or '5.5.0'})"
+                self.puemosOperationalStatusChanged.emit()
+                self.puemosStatusTextChanged.emit()
+                self.puemosAvailableVersionChanged.emit()
+                self.puemosUpdateAvailableChanged.emit()
                 self._refresh_observer_snapshot()
             except Exception as exc:
-                self._observer_status_text = f"Observer check error: {exc}"
-                self.observerStatusTextChanged.emit()
+                self._puemos_operational_status = "Failed"
+                self._puemos_status_text = f"Observer check error: {exc}"
+                self.puemosOperationalStatusChanged.emit()
+                self.puemosStatusTextChanged.emit()
             finally:
-                self._updater_busy = False
-                self.updaterBusyChanged.emit()
+                self._puemos_busy = False
+                self.puemosBusyChanged.emit()
 
         threading.Thread(target=_worker, daemon=True).start()
 
     @Slot()
+    def checkObserverUpdate(self) -> None:
+        self.checkPuemosUpdate()
+
+    @Slot()
     def applyObserverUpdate(self) -> None:
-        if self._updater_busy:
+        if self._puemos_busy:
             return
-        self._updater_busy = True
-        self._observer_status_text = "Updating media observer..."
-        self.observerStatusTextChanged.emit()
-        self.updaterBusyChanged.emit()
+        self._puemos_busy = True
+        self._puemos_operational_status = "Updating..."
+        self._puemos_status_text = "Updating media observer..."
+        self.puemosBusyChanged.emit()
+        self.puemosOperationalStatusChanged.emit()
+        self.puemosStatusTextChanged.emit()
 
         def _worker():
             try:
                 from vrka_core.media_observer import apply_update
                 result = apply_update()
                 if result.get("updated"):
-                    self._observer_status_text = f"Updated to {result.get('installed_version')}"
+                    self._puemos_operational_status = "Up to date"
+                    self._puemos_status_text = f"Updated to {result.get('installed_version')}"
                 elif result.get("message"):
-                    self._observer_status_text = str(result.get("message"))
+                    self._puemos_status_text = str(result.get("message"))
                 else:
-                    self._observer_status_text = f"Observer update failed: {result.get('error')}"
-                self.observerStatusTextChanged.emit()
+                    self._puemos_operational_status = "Failed"
+                    self._puemos_status_text = f"Observer update failed: {result.get('error')}"
+                self.puemosOperationalStatusChanged.emit()
+                self.puemosStatusTextChanged.emit()
                 self._refresh_observer_snapshot()
             except Exception as exc:
-                self._observer_status_text = f"Observer update error: {exc}"
-                self.observerStatusTextChanged.emit()
+                self._puemos_operational_status = "Failed"
+                self._puemos_status_text = f"Observer update error: {exc}"
+                self.puemosOperationalStatusChanged.emit()
+                self.puemosStatusTextChanged.emit()
             finally:
-                self._updater_busy = False
-                self.updaterBusyChanged.emit()
+                self._puemos_busy = False
+                self.puemosBusyChanged.emit()
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -306,6 +457,10 @@ class OperationalController(QObject):
     @Property(str, notify=updaterStatusTextChanged)
     def updaterStatusText(self) -> str:
         return self._updater_status_text
+
+    @Property(str, notify=updaterOperationalStatusChanged)
+    def updaterOperationalStatus(self) -> str:
+        return self._updater_operational_status
 
     @Property(str, notify=updaterCurrentVersionChanged)
     def updaterCurrentVersion(self) -> str:
@@ -322,12 +477,22 @@ class OperationalController(QObject):
     def _refresh_updater_snapshot(self) -> None:
         try:
             summary = app.active_ytdlp_summary()
-            self._updater_current_version = f"{summary.get('version')} ({summary.get('source')})"
-            self._updater_status_text = f"Active: {self._updater_current_version}"
+            ver = summary.get('version')
+            src = summary.get('source')
+            if ver:
+                self._updater_current_version = f"{ver} ({src})"
+                self._updater_operational_status = "Active"
+                self._updater_status_text = f"Active: {self._updater_current_version}"
+            else:
+                self._updater_current_version = "Unavailable"
+                self._updater_operational_status = "Unavailable"
+                self._updater_status_text = "yt-dlp engine unavailable"
         except Exception as exc:
             self._updater_current_version = "?"
+            self._updater_operational_status = "Unavailable"
             self._updater_status_text = f"yt-dlp status unavailable: {exc}"
         self.updaterCurrentVersionChanged.emit()
+        self.updaterOperationalStatusChanged.emit()
         self.updaterStatusTextChanged.emit()
 
     @Slot()

@@ -20,6 +20,13 @@ Rectangle {
     required property string url
     required property string mode
 
+    readonly property real normalizedProgress: {
+        if (root.status === "completed") return 1.0;
+        if (root.progress <= 0.0) return 0.0;
+        if (root.progress <= 1.0) return root.progress;
+        return Math.min(1.0, root.progress / 100.0);
+    }
+
     implicitHeight: 84
     height: implicitHeight
 
@@ -145,13 +152,19 @@ Rectangle {
                 visible: root.status === "downloading" || root.status === "completed"
 
                 Rectangle {
+                    id: progressBar
                     anchors.left: parent.left
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.right: (root.status === "completed" || root.progress >= 100.0 || (root.progress >= 0.999 && root.progress <= 1.0)) ? parent.right : undefined
-                    width: anchors.right ? undefined : (parent.width * Math.min(1.0, Math.max(0.0, root.progress <= 1.0 ? root.progress : (root.progress / 100.0))))
+                    width: root.status === "completed"
+                           ? parent.width
+                           : (root.normalizedProgress > 0 ? Math.max(4, Math.round(parent.width * root.normalizedProgress)) : 0)
                     radius: 2
                     color: root.status === "completed" ? Theme.success : Theme.accent
+
+                    Behavior on width {
+                        NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                    }
                 }
             }
 
@@ -188,7 +201,7 @@ Rectangle {
 
                 Label {
                     visible: root.status === "downloading" || root.status === "completed"
-                    text: root.status === "completed" ? "100%" : (Math.round(root.progress <= 1.0 && root.progress > 0.0 ? (root.progress * 100.0) : root.progress) + "%")
+                    text: root.status === "completed" ? "100%" : (Math.round(root.normalizedProgress * 100.0) + "%")
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.microSize
                     font.bold: true
