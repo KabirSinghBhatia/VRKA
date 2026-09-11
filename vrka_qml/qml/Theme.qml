@@ -30,7 +30,16 @@ QtObject {
     readonly property color material3: cardAlt
     readonly property color material4: surfaceElevated
     readonly property color glassBg:      isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.88) : Qt.rgba(0.04, 0.02, 0.08, 0.85)
-    readonly property color glassBorder:  isLight ? Qt.rgba(0.86, 0.88, 0.93, 0.9) : Qt.rgba(0.24, 0.16, 0.40, 0.5)
+    readonly property color glassBorder:  isLight ? Qt.rgba(0.86, 0.88, 0.93, 0.9) : Qt.rgba(0.20, 0.14, 0.32, 0.45)
+    
+    // Genuinely Visible Frosted Sidebar Tokens
+    readonly property color sidebarGlassTop:    isLight ? Qt.rgba(0.98, 0.98, 1.0, 0.96) : Qt.rgba(0.07, 0.04, 0.12, 0.92)
+    readonly property color sidebarGlassMid:    isLight ? Qt.rgba(0.96, 0.96, 0.98, 0.94) : Qt.rgba(0.04, 0.02, 0.08, 0.94)
+    readonly property color sidebarGlassBottom: isLight ? Qt.rgba(0.93, 0.94, 0.97, 0.96) : Qt.rgba(0.02, 0.01, 0.05, 0.97)
+    readonly property color sidebarGlow:        isLight ? Qt.rgba(0.51, 0.25, 0.86, 0.05) : Qt.rgba(0.51, 0.25, 0.86, 0.14)
+    readonly property color sidebarHighlight:   isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.85) : Qt.rgba(0.70, 0.50, 0.98, 0.12)
+    readonly property color sidebarBorder:      isLight ? "#DCE1EC" : Qt.rgba(0.38, 0.22, 0.58, 0.38)
+    
     readonly property color titleBarBg:   isLight ? "#FFFFFF" : "#000000"
     readonly property color titleBarBorder: isLight ? "#DCE1EC" : "transparent"
 

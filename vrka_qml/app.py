@@ -42,6 +42,30 @@ def _load_brand_fonts() -> None:
         QFontDatabase.addApplicationFont(str(fonts_dir / name))
 
 
+def _apply_windows_native_framing(window) -> None:
+    """Apply Windows 11 DWM rounded corner preference and immersive dark framing."""
+    if sys.platform != "win32" or not window:
+        return
+    try:
+        import ctypes
+        from ctypes import byref, c_int, sizeof
+
+        hwnd = int(window.winId())
+        if not hwnd:
+            return
+        dwmapi = ctypes.windll.dwmapi
+        # DWMWA_WINDOW_CORNER_PREFERENCE = 33 (Windows 11 build 22000+)
+        # DWMWCP_ROUND = 2
+        corner_pref = c_int(2)
+        dwmapi.DwmSetWindowAttribute(hwnd, 33, byref(corner_pref), sizeof(corner_pref))
+
+        # DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 1809+ / Windows 11)
+        dark_mode = c_int(1)
+        dwmapi.DwmSetWindowAttribute(hwnd, 20, byref(dark_mode), sizeof(dark_mode))
+    except Exception:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     smoke = "--smoke" in argv
@@ -122,6 +146,9 @@ def main(argv: list[str] | None = None) -> int:
         # QML syntax errors, missing files or failed resource resolution all
         # surface here as "no root object".
         return 1
+
+    root_window = engine.rootObjects()[0]
+    _apply_windows_native_framing(root_window)
 
     if smoke:
         # Exercise one event-loop pass so bindings/delegates actually run,

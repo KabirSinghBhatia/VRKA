@@ -53,21 +53,52 @@ ApplicationWindow {
             anchors.top: customTitleBar.bottom
             anchors.bottom: parent.bottom
 
-            // Left Navigation Sidebar (Floating / Frosted Material Hierarchy)
-            Rectangle {
+            // Left Navigation Sidebar (Frosted Translucent Material Shell)
+            Item {
                 id: sidebar
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 width: Theme.sidebarWidth
-                color: Theme.sidebar
 
+                // Layer 1: Base Translucent Acrylic Gradient
+                Rectangle {
+                    anchors.fill: parent
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Theme.sidebarGlassTop }
+                        GradientStop { position: 0.5; color: Theme.sidebarGlassMid }
+                        GradientStop { position: 1.0; color: Theme.sidebarGlassBottom }
+                    }
+                }
+
+                // Layer 2: Ambient Purple Refraction Glow behind brand & navigation
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 240
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Theme.sidebarGlow }
+                        GradientStop { position: 1.0; color: "transparent" }
+                    }
+                }
+
+                // Layer 3: Inner Specular Glass Sheen (Left rim highlight)
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 1
+                    color: Theme.sidebarHighlight
+                }
+
+                // Layer 4: Right Frosted Glass Boundary Divider
                 Rectangle {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     width: Theme.hairline
-                    color: Theme.border
+                    color: Theme.sidebarBorder
                 }
 
                 ColumnLayout {
