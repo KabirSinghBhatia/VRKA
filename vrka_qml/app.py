@@ -24,10 +24,9 @@ from .operational_controller import OperationalController
 from .queue_controller import QueueController
 from .settings_state import SettingsState
 
-# Active VRKA 3.5 application identity (the frozen 3.0 / Build 011 metadata in
-# vrka_downloader.py, version_info.txt and the installer stays untouched).
-APP_DISPLAY_VERSION = "4.0.1"
-APP_BUILD = "017"
+# Authoritative VRKA 4.5 application identity
+APP_DISPLAY_VERSION = "4.5"
+APP_BUILD = "018"
 
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     PROJECT_ROOT = Path(sys._MEIPASS)

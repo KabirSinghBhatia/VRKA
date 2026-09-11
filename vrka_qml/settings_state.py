@@ -45,6 +45,8 @@ SETTINGS_KEYS = (
     "cookie_browser",
     "cookie_profile",
     "cookie_file",
+    "font_family_mode",
+    "destination_mode",
 )
 
 
@@ -52,6 +54,8 @@ def _default_settings(output_folder: str) -> dict:
     return {
         "appearance_mode": "Dark",
         "output_folder": output_folder,
+        "font_family_mode": "vrka",
+        "destination_mode": "remember",
         "mode": "video",
         "quality": "1080p (Full HD)",
         "fps60": False,
@@ -117,6 +121,8 @@ class SettingsState(QObject):
     cookieBrowserChanged = Signal()
     cookieProfileChanged = Signal()
     cookieFileChanged = Signal()
+    fontFamilyModeChanged = Signal()
+    destinationModeChanged = Signal()
 
     # Batch signals
     settingsLoaded = Signal()
@@ -167,6 +173,8 @@ class SettingsState(QObject):
             "cookie_browser": self.cookieBrowserChanged,
             "cookie_profile": self.cookieProfileChanged,
             "cookie_file": self.cookieFileChanged,
+            "font_family_mode": self.fontFamilyModeChanged,
+            "destination_mode": self.destinationModeChanged,
         }
         sig = mapping.get(key)
         if sig is not None:
@@ -626,6 +634,34 @@ class SettingsState(QObject):
             return
         self._data["cookie_file"] = cleaned
         self.cookieFileChanged.emit()
+
+    @Property(str, notify=fontFamilyModeChanged)
+    def fontFamilyMode(self) -> str:
+        return str(self._data.get("font_family_mode", "vrka"))
+
+    @fontFamilyMode.setter
+    def fontFamilyMode(self, v: str) -> None:
+        cleaned = str(v or "").strip().lower()
+        if cleaned not in ("vrka", "system"):
+            return
+        if self._data.get("font_family_mode") == cleaned:
+            return
+        self._data["font_family_mode"] = cleaned
+        self.fontFamilyModeChanged.emit()
+
+    @Property(str, notify=destinationModeChanged)
+    def destinationMode(self) -> str:
+        return str(self._data.get("destination_mode", "remember"))
+
+    @destinationMode.setter
+    def destinationMode(self, v: str) -> None:
+        cleaned = str(v or "").strip().lower()
+        if cleaned not in ("remember", "ask_every_time"):
+            return
+        if self._data.get("destination_mode") == cleaned:
+            return
+        self._data["destination_mode"] = cleaned
+        self.destinationModeChanged.emit()
 
     # Transient Advanced custom command (not persisted, per-next-download, mirrors 3.0's
     # "I understand: use this custom command for the next queued download").

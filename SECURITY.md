@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | :--- | :--- |
-| 4.0.1 (Build 017) | :white_check_mark: |
-| < 4.0.1 | :x: |
+| 4.5 (Build 018) | :white_check_mark: |
+| < 4.5 | :x: |
 
 ---
 
@@ -25,7 +25,8 @@ Please allow up to 48 hours for initial triage before public disclosure.
 
 ## Security Architecture Highlights
 
-- **Redacted Logging**: Sensitive values, access tokens, and cookies are automatically redacted from activity logs and persistent records.
+- **RFC 7230 Header Validation**: All custom headers are strictly validated against token syntax and checked for CRLF (`\r`, `\n`) or null byte (`\0`) injection.
+- **Redacted Logging & Diagnostics**: Sensitive headers (`Authorization`, `Cookie`, `X-Auth-Token`, `Proxy-Authorization`), signed tokens, and browser session data are automatically scrubbed before reaching logs or exported diagnostics.
+- **Application & Runtime Updates**: The updater downloads only over TLS/HTTPS with per-hop redirect validation restricted to approved hosts (`github.com`, `githubusercontent.com`). Downloads are verified against SHA-256 manifests. *Note: SHA-256 downloaded alongside mutable release assets provides integrity against transfer corruption and basic tampering; full release authenticity relies on HTTPS transport and the host trust model.*
 - **Task-Scoped Subprocesses**: All helper and browser processes are registered with the task context and terminated upon task completion or cancellation.
 - **DRM Respect**: VRKA intentionally terminates extraction on DRM-protected media streams.
-- **Signed Runtime Updates**: The runtime manager validates SHA-256 signatures before activating updated yt-dlp binaries.

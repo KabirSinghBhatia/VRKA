@@ -1,5 +1,5 @@
 param(
-    [string]$OutputDirectory = "outputs\VRKA-4.0.1-build017-release"
+    [string]$OutputDirectory = "outputs\VRKA-4.5-build018-release"
 )
 
 $ErrorActionPreference = "Stop"
@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $outputRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDirectory))
-$stageRoot = Join-Path $projectRoot ".release_stage_4_0_1"
+$stageRoot = Join-Path $projectRoot ".release_stage_4_5_0"
 
 Write-Host "Creating release package at $outputRoot..."
 
@@ -18,10 +18,10 @@ New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 
 $names = [ordered]@{
-    PortableZip = "VRKA-4.0.1-build017-portable-Windows-x64.zip"
-    PortableExe = "VRKA-4.0.1-build017-portable-Windows-x64.exe"
-    Installer   = "VRKA-4.0.1-build017-setup-Windows-x64.exe"
-    SourceZip   = "VRKA-4.0.1-build017-complete-source.zip"
+    PortableZip = "VRKA-4.5-build018-portable-Windows-x64.zip"
+    PortableExe = "VRKA-4.5-build018-portable-Windows-x64.exe"
+    Installer   = "VRKA-4.5-build018-setup-Windows-x64.exe"
+    SourceZip   = "VRKA-4.5-build018-complete-source.zip"
     Hashes      = "SHA256SUMS.txt"
 }
 
@@ -56,7 +56,7 @@ if ($isccPath) {
 }
 
 # 3. Prepare complete source package (strict source-only filter, < 10 MB)
-$sourceStage = Join-Path $stageRoot "VRKA-4.0.1-source"
+$sourceStage = Join-Path $stageRoot "VRKA-4.5.0-source"
 New-Item -ItemType Directory -Path $sourceStage -Force | Out-Null
 
 $ignoreDirs = @(

@@ -11,7 +11,7 @@
   </p>
 
   <p>
-    <a href="https://github.com/MaverickRox/VRKA/releases/latest"><b>Download VRKA 4.0.1</b></a> •
+    <a href="https://github.com/MaverickRox/VRKA/releases/latest"><b>Download VRKA 4.5</b></a> •
     <a href="docs/USER_GUIDE.md">User Guide</a> •
     <a href="docs/ARCHITECTURE_OVERVIEW.md">Architecture</a> •
     <a href="https://github.com/MaverickRox/VRKA/issues/new/choose">Report Issue</a> •
@@ -27,33 +27,33 @@
 
 ---
 
-## Download VRKA 4.0.1
+## Download VRKA 4.5
 
-Get the official Windows release from [GitHub Releases (v4.0.1)](https://github.com/MaverickRox/VRKA/releases/tag/v4.0.1):
+Get the official Windows release from [GitHub Releases (v4.5)](https://github.com/MaverickRox/VRKA/releases/tag/v4.5):
 
 | Package | Filename | Recommended For | Description |
 | :--- | :--- | :--- | :--- |
-| **[Windows Installer](https://github.com/MaverickRox/VRKA/releases/tag/v4.0.1)** | `VRKA-4.0.1-build017-setup-Windows-x64.exe` | Most Users | Standard setup wizard with Start Menu and Desktop shortcuts. |
-| **[Portable ZIP](https://github.com/MaverickRox/VRKA/releases/tag/v4.0.1)** | `VRKA-4.0.1-build017-portable-Windows-x64.zip` | USB / Portable | Standalone directory — extract anywhere and run `VRKA.exe`. |
-| **[Single-File Portable EXE](https://github.com/MaverickRox/VRKA/releases/tag/v4.0.1)** | `VRKA-4.0.1-build017-portable-Windows-x64.exe` | Lightweight Run | Single-file executable (~92 MB). Provisions managed runtime on first use. |
-| **[Complete Source Archive](https://github.com/MaverickRox/VRKA/releases/tag/v4.0.1)** | `VRKA-4.0.1-build017-complete-source.zip` | Developers | Complete buildable source distribution snapshot. |
+| **[Windows Installer](https://github.com/MaverickRox/VRKA/releases/tag/v4.5)** | `VRKA-4.5-build018-setup-Windows-x64.exe` | Most Users | Standard setup wizard with Start Menu and Desktop shortcuts. |
+| **[Portable ZIP](https://github.com/MaverickRox/VRKA/releases/tag/v4.5)** | `VRKA-4.5-build018-portable-Windows-x64.zip` | USB / Portable | Standalone directory — extract anywhere and run `VRKA.exe`. |
+| **[Single-File Portable EXE](https://github.com/MaverickRox/VRKA/releases/tag/v4.5)** | `VRKA-4.5-build018-portable-Windows-x64.exe` | Lightweight Run | Single-file executable. Provisions managed runtime on first use. |
+| **[Complete Source Archive](https://github.com/MaverickRox/VRKA/releases/tag/v4.5)** | `VRKA-4.5-build018-complete-source.zip` | Developers | Complete buildable source distribution snapshot. |
 
 > **No Manual FFmpeg Installation Required**:
-> VRKA is strictly PATH-independent. The single-file portable executable automatically provisions and cryptographically verifies a pinned external FFmpeg runtime in `%LOCALAPPDATA%\VRKA\runtime\` upon first video merge or audio extraction, and reuses it offline on subsequent runs. You do not need to install FFmpeg or set environment variables.
+> VRKA is strictly PATH-independent. The application automatically provisions and verifies required media processing components in `%LOCALAPPDATA%\VRKA\runtime\` upon first video merge or audio extraction, and reuses them offline on subsequent runs.
 
 ### Verifying Checksums
 
-Every release provides a signed `SHA256SUMS.txt` manifest. Verify your download in PowerShell:
+Every release provides a `SHA256SUMS.txt` manifest. Verify your download in PowerShell:
 
 ```powershell
-Get-FileHash .\VRKA-4.0.1-build017-setup-Windows-x64.exe -Algorithm SHA256
+Get-FileHash .\VRKA-4.5-build018-setup-Windows-x64.exe -Algorithm SHA256
 ```
 
 ---
 
 ## What is VRKA?
 
-VRKA is a clean, desktop media downloader designed for single-stream and batch downloads on Windows 10 and 11. Built with a native **Qt 6 QML** interface and a Python backend, VRKA combines direct media extraction powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) with an automated, passive **Browser Fallback** subsystem for sites that require browser-assisted stream observation.
+VRKA is a clean, modern desktop media downloader designed for single-stream and batch downloads on Windows 10 and 11. Built with a native **Qt 6 QML** interface and a resilient Python backend, VRKA combines multi-factor quality selection powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) with an automated, passive **Browser Fallback** subsystem for sites that require browser-assisted stream observation.
 
 VRKA is entirely self-contained, ad-free, and respects your privacy with zero background services and zero telemetry.
 
@@ -61,14 +61,16 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 
 ## Features
 
-- **Responsive Qt 6 QML Interface**: Hardware-accelerated UI with fluid animations, adaptive high-DPI scaling, and an integrated Day/Night theme toggle.
+- **Modern Frameless Desktop Experience**: Custom Windows title bar with native snap layout compatibility, edge/corner resizing, double-click maximize, and drag controls.
+- **Multi-Factor Quality Ranking**: Holistic evaluation of resolution, 60 FPS frame rate, HDR color grading, video bitrate, container compatibility, and codec efficiency (never choosing a newer codec over a higher-fidelity source stream).
+- **Responsive Qt 6 QML Interface**: Hardware-accelerated UI with fluid animations, adaptive typography switcher (VRKA Monospace vs System Segoe UI), and integrated Day/Night theme toggle.
+- **Audio Extraction & Transcoding**: Extract audio in MP3 (320, 256, 192, 128 kbps), Opus, or uncompressed WAV formats.
+- **Flexible Destination Modes**: Choose between "Remember Location" (persisting chosen folder) or "Ask Every Time" (per-download location prompt).
+- **Advanced Network & Custom Headers**: Strict RFC 7230 header validation, CRLF/newline injection rejection, and automated secret scrubbing from logs.
+- **In-App Application & Engine Updater**: Direct in-app updates with rate-limited GitHub release checks, SHA-256 integrity verification, and atomic staging.
 - **Durable Task Queue**: Reliable single-worker FIFO scheduling with persistent state storage—downloads resume cleanly across application restarts.
-- **Managed Media Processing Runtime**: Automatically manages and cryptographically verifies required media processing components (yt-dlp and FFmpeg) in `%LOCALAPPDATA%\VRKA\runtime`—no manual tool installation or PATH configuration required.
-- **Audio Extraction & Transcoding**: Extract high-fidelity audio in MP3 (320, 256, 192, 128 kbps), WAV (uncompressed PCM), or FLAC formats.
-- **Passive Browser Fallback**: When direct extractor attempts are blocked by web challenges or complex player scripts, an isolated WebView2 session passively detects and captures media streams (HLS master manifests, DASH, and direct MP4) with built-in uBlock Origin Lite content protection.
-- **Managed Runtime Updater**: Check for official yt-dlp engine updates in-app, verify cryptographic checksums automatically, and roll back instantly if needed.
-- **Selectable Activity Log**: Real-time download console supporting text selection, `Ctrl+A` select all, and `Ctrl+C` copying.
-- **Privacy & Security by Design**: No telemetry, no persistent user tracking, automatic redaction of cookies and session tokens from logs, and strict respect for Digital Rights Management (DRM).
+- **Passive Browser Fallback & Session Purge**: Isolated WebView2 session passively detects HLS/DASH media with built-in uBlock Origin Lite protection, with instant session data clearing in Settings.
+- **Sanitized Diagnostics**: Export redacted diagnostic reports for troubleshooting without leaking credentials or private session data.
 
 ---
 
@@ -107,13 +109,13 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 
 ### Using the Setup Installer (Recommended)
 
-1. Download `VRKA-4.0.1-build017-setup-Windows-x64.exe` from [Releases](https://github.com/MaverickRox/VRKA/releases/latest).
+1. Download `VRKA-4.5-build018-setup-Windows-x64.exe` from [Releases](https://github.com/MaverickRox/VRKA/releases/latest).
 2. Run the installer and follow the setup steps.
 3. Launch VRKA from the Start Menu or Desktop shortcut.
 
 ### Using Portable Mode
 
-1. Download `VRKA-4.0.1-build017-portable-Windows-x64.zip`.
+1. Download `VRKA-4.5-build018-portable-Windows-x64.zip`.
 2. Extract the archive to any folder or USB drive.
 3. Run `VRKA.exe`. All settings are stored locally, and no administrative privileges are required.
 

@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Layouts
 import ".."
 
 Button {
@@ -8,8 +9,8 @@ Button {
 
     property string iconName: ""
 
-    implicitWidth: contentRow.implicitWidth + 24
-    implicitHeight: Theme.controlHeight
+    implicitWidth: Math.max(76, contentRow.implicitWidth + 24)
+    implicitHeight: Theme.secondaryButtonHeight
     hoverEnabled: true
     focusPolicy: Qt.StrongFocus
     font.family: Theme.fontFamily
@@ -22,31 +23,41 @@ Button {
              : root.down ? Theme.surfaceHover
              : root.hovered ? Theme.surfaceElevated
              : Theme.cardAlt
-        border.width: 1
-        border.color: root.visualFocus ? Theme.focusRing : Theme.border
-        opacity: root.enabled ? 1.0 : 0.4
+        border.width: root.visualFocus ? 2 : 1
+        border.color: root.visualFocus ? Theme.focusRing : (root.hovered ? Theme.borderStrong : Theme.border)
+        opacity: root.enabled ? 1.0 : 0.45
+
+        Behavior on color {
+            ColorAnimation { duration: 120 }
+        }
     }
 
-    contentItem: Row {
-        id: contentRow
-        spacing: 6
-        anchors.centerIn: parent
+    contentItem: Item {
+        anchors.fill: parent
 
-        Image {
-            visible: root.iconName !== ""
-            source: root.iconName !== "" ? Qt.resolvedUrl("../../../assets/branding/v2icons/" + root.iconName + "-" + (Theme.isLight ? "lightMuted" : "muted") + "-32.png") : ""
-            width: 14
-            height: 14
-            anchors.verticalCenter: parent.verticalCenter
-            fillMode: Image.PreserveAspectFit
-            mipmap: true
-        }
+        RowLayout {
+            id: contentRow
+            anchors.centerIn: parent
+            spacing: 6
 
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.text
-            font: root.font
-            color: root.enabled ? Theme.text : Theme.textDisabled
+            Image {
+                visible: root.iconName !== ""
+                source: root.iconName !== "" ? Qt.resolvedUrl("../../../assets/branding/v2icons/" + root.iconName + "-" + (Theme.isLight ? "lightMuted" : "muted") + "-32.png") : ""
+                Layout.preferredWidth: 14
+                Layout.preferredHeight: 14
+                Layout.alignment: Qt.AlignVCenter
+                fillMode: Image.PreserveAspectFit
+                mipmap: true
+            }
+
+            Text {
+                text: root.text
+                font: root.font
+                color: root.enabled ? Theme.text : Theme.textDisabled
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                Layout.alignment: Qt.AlignVCenter
+            }
         }
     }
 }

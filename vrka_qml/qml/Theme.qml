@@ -8,66 +8,78 @@ QtObject {
     property string mode: "dark"
     readonly property bool isLight: mode === "light"
 
-    // Exact Authoritative VRKA 3.0 Semantic Colors
-    readonly property color bg:              isLight ? "#FFFFFF" : "#000000"
-    readonly property color sidebar:         isLight ? "#F7F7F8" : "#050505"
-    readonly property color card:            isLight ? "#F7F7F8" : "#090909"
-    readonly property color cardAlt:         isLight ? "#EFEFF1" : "#111111"
-    readonly property color surfaceElevated: isLight ? "#E8E8EB" : "#161616"
-    readonly property color surfaceHover:    isLight ? "#DEDEE3" : "#202020"
-    readonly property color border:          isLight ? "#DEDEE3" : "#242424"
-    readonly property color borderStrong:    isLight ? "#C8C8CF" : "#363636"
+    // Dynamic Typography Preference (VRKA Space Mono vs System Font)
+    readonly property string fontFamily: (typeof Settings !== "undefined" && Settings && Settings.fontFamilyMode === "system")
+                                         ? "Segoe UI Variable, Segoe UI, -apple-system, sans-serif"
+                                         : "Space Mono"
 
-    // VRKA Signature Accent
-    readonly property color accent:          "#8140DC"
-    readonly property color accentHover:     "#9255E5"
-    readonly property color accentPressed:   "#6E31C3"
-    readonly property color accentSoft:      isLight ? "#F1E8FC" : "#180D24"
-    readonly property color accentSoftHover: isLight ? "#E8D9FA" : "#241236"
-    readonly property color focusRing:       "#B98AF2"
+    // Exact Authoritative VRKA Semantic Colors & Surface Elevations
+    readonly property color bg:              isLight ? "#F8F9FC" : "#070709"
+    readonly property color sidebar:         isLight ? "#FFFFFF" : "#0C0C10"
+    readonly property color card:            isLight ? "#FFFFFF" : "#111116"
+    readonly property color cardAlt:         isLight ? "#F1F3F8" : "#171720"
+    readonly property color surfaceElevated: isLight ? "#E8ECF4" : "#1E1E2A"
+    readonly property color surfaceHover:    isLight ? "#DFE4EE" : "#262636"
+    readonly property color border:          isLight ? "#DCE1EC" : "#252533"
+    readonly property color borderStrong:    isLight ? "#C5CCDC" : "#38384C"
 
-    // Text hierarchy
-    readonly property color text:         isLight ? "#141216" : "#FAF9FC"
-    readonly property color textMuted:    isLight ? "#4E4B54" : "#C8C4CF"
-    readonly property color textDim:      isLight ? "#6B6871" : "#98939F"
-    readonly property color textDisabled: isLight ? "#85818B" : "#817C88"
-    readonly property color textOnAccent: "#FFFFFF"
-
-    // Semantics
-    readonly property color success:      "#2BCB77"
-    readonly property color successSoft:  isLight ? "#EBF9F1" : "#0B1F14"
-    readonly property color warning:      "#E7A93D"
-    readonly property color warningSoft:  isLight ? "#FDF6EB" : "#241804"
-    readonly property color error:        "#EF5A67"
-    readonly property color errorSoft:    isLight ? "#FDEEF0" : "#270A0E"
-
-    // Frosted Material Levels (Material 0 - 4)
+    // Subtle Translucent / Frosted Material Tokens (Material 0 - 4)
     readonly property color material0: bg
     readonly property color material1: sidebar
     readonly property color material2: card
     readonly property color material3: cardAlt
     readonly property color material4: surfaceElevated
+    readonly property color glassBg:      isLight ? Qt.rgba(1.0, 1.0, 1.0, 0.85) : Qt.rgba(0.07, 0.07, 0.09, 0.85)
+    readonly property color glassBorder:  isLight ? Qt.rgba(0.86, 0.88, 0.93, 0.9) : Qt.rgba(0.20, 0.20, 0.28, 0.9)
+    readonly property color titleBarBg:   isLight ? "#FFFFFF" : "#0C0C10"
+    readonly property color titleBarBorder: isLight ? "#DCE1EC" : "#252533"
+
+    // VRKA Signature Accent (Refined purple)
+    readonly property color accent:          "#8140DC"
+    readonly property color accentHover:     "#9255E5"
+    readonly property color accentPressed:   "#6E31C3"
+    readonly property color accentSoft:      isLight ? "#F1E8FC" : "#1C112C"
+    readonly property color accentSoftHover: isLight ? "#E8D9FA" : "#28173E"
+    readonly property color focusRing:       "#9255E5"
+
+    // Text hierarchy
+    readonly property color text:         isLight ? "#111116" : "#FAF9FC"
+    readonly property color textMuted:    isLight ? "#4E5262" : "#C8C4CF"
+    readonly property color textDim:      isLight ? "#6E7488" : "#9893A4"
+    readonly property color textDisabled: isLight ? "#9BA1B4" : "#686472"
+    readonly property color textOnAccent: "#FFFFFF"
+
+    // Status Semantics
+    readonly property color success:      "#2BCB77"
+    readonly property color successSoft:  isLight ? "#EBF9F1" : "#0B2215"
+    readonly property color warning:      "#E7A93D"
+    readonly property color warningSoft:  isLight ? "#FDF6EB" : "#261905"
+    readonly property color error:        "#EF5A67"
+    readonly property color errorSoft:    isLight ? "#FDEEF0" : "#2B0B10"
 
     // Spacing & geometry system
     readonly property int sidebarWidth:         240
-    readonly property int navButtonHeight:      46
-    readonly property int controlHeight:        42
+    readonly property int titleBarHeight:       38
+    readonly property int navButtonHeight:      44
+    readonly property int controlHeight:        40
     readonly property int controlRadius:        8
     readonly property int cardRadius:           12
-    readonly property int primaryButtonHeight:  48
-    readonly property int pagePadX:             32
-    readonly property int pagePadY:             24
-    readonly property int cardPadX:             20
+    readonly property int primaryButtonHeight:  44
+    readonly property int secondaryButtonHeight: 40
+    readonly property int pagePadX:             28
+    readonly property int pagePadY:             20
+    readonly property int cardPadX:             18
+    readonly property int cardPadY:             16
+    readonly property int panelGap:             14
     readonly property int hairline:             1
 
-    // Space Mono Typography Hierarchy
-    readonly property string fontFamily:       "Space Mono"
-    readonly property int    logoSize:       72
-    readonly property int    brandTitleSize:   26
-    readonly property int    displayTitleSize: 28
-    readonly property int    pageTitleSize:    24
-    readonly property int    sectionTitleSize: 16
-    readonly property int    bodySize:         14
-    readonly property int    smallSize:        12
-    readonly property int    microSize:        11
+    // Typography Ramp
+    readonly property int logoSize:         64
+    readonly property int brandTitleSize:   22
+    readonly property int displayTitleSize: 24
+    readonly property int pageTitleSize:    20
+    readonly property int sectionTitleSize: 15
+    readonly property int bodySize:         13
+    readonly property int smallSize:        12
+    readonly property int microSize:        11
 }

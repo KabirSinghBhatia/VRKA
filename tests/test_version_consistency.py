@@ -1,0 +1,33 @@
+"""Version consistency tests for VRKA 4.5."""
+
+from pathlib import Path
+import unittest
+import tomllib
+
+
+class VersionConsistencyTests(unittest.TestCase):
+    def setUp(self):
+        self.repo_root = Path(__file__).resolve().parents[1]
+
+    def test_pyproject_version_is_4_5(self):
+        pyproject_path = self.repo_root / "pyproject.toml"
+        self.assertTrue(pyproject_path.exists(), "pyproject.toml missing")
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+        version = data.get("project", {}).get("version", "")
+        self.assertTrue(version.startswith("4.5"), f"Expected 4.5.x in pyproject.toml, got {version}")
+
+    def test_app_py_version_constants(self):
+        from vrka_qml.app import APP_DISPLAY_VERSION, APP_BUILD
+        self.assertEqual(APP_DISPLAY_VERSION, "4.5")
+        self.assertEqual(APP_BUILD, "018")
+
+    def test_vrka_downloader_version_constants(self):
+        import vrka_downloader as vd
+        self.assertEqual(vd.APP_DISPLAY_VERSION, "4.5")
+        self.assertEqual(vd.APP_BUILD, "018")
+        self.assertTrue(vd.APP_VERSION.startswith("4.5"))
+
+
+if __name__ == "__main__":
+    unittest.main()

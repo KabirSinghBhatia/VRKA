@@ -8,7 +8,7 @@ Rectangle {
     id: root
 
     property int selectedIndex: 0
-    property var options: ["Video", "Audio Only"]
+    property var options: ["Video Stream", "Audio Only"]
     signal optionSelected(int index)
 
     implicitWidth: 260
@@ -40,6 +40,10 @@ Rectangle {
                     color: root.selectedIndex === segBtn.index ? Theme.accent
                          : segBtn.hovered ? Theme.surfaceElevated
                          : "transparent"
+
+                    Behavior on color {
+                        ColorAnimation { duration: 100 }
+                    }
                 }
 
                 contentItem: RowLayout {
@@ -51,12 +55,11 @@ Rectangle {
                         Layout.preferredHeight: 14
                         source: {
                             var icon = segBtn.index === 0 ? "play" : "music"
-                            var variant = root.selectedIndex === segBtn.index ? "white" : (Theme.isLight ? "lightMuted" : "muted")
-                            if (root.selectedIndex === segBtn.index) return Qt.resolvedUrl("../../../assets/branding/v2icons/" + icon + "-white-32.png")
-                            return Qt.resolvedUrl("../../../assets/branding/v2icons/" + icon + "-" + variant + "-32.png")
+                            return Qt.resolvedUrl("../../../assets/branding/v2icons/" + icon + "-accent-32.png")
                         }
                         fillMode: Image.PreserveAspectFit
                         mipmap: true
+                        opacity: root.selectedIndex === segBtn.index ? 1.0 : 0.7
                     }
 
                     Text {

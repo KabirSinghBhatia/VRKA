@@ -14,12 +14,13 @@ When direct extraction encounters protected pages, VRKA launches an isolated Web
 VRKA **does not** circumvent or decrypt DRM-protected streams (such as Widevine, FairPlay, or PlayReady). If encrypted media segments or license challenge handshakes are detected, the download terminates immediately with an explicit explanation.
 
 ## Quality & Source Availability
+- **Deterministic Multi-Factor Selection**: VRKA selects video streams using a multi-factor score: resolution, frame rate (60fps bonus), HDR dynamic range, video bitrate, container, and codec efficiency. Newer codecs (such as AV1) are evaluated contextually and are never selected over a higher-bitrate representation of superior source fidelity.
 - **No Artificial Upscaling**: VRKA only downloads video and audio streams made available by the hosting provider.
 - **High Frame Rates**: 60 FPS options are preferred when provided by the server; otherwise, the engine falls back to standard frame rates.
-- **Audio Conversion**: Transcoding audio to lossless formats (such as FLAC) preserves existing fidelity but cannot recover frequency data lost in lossy source streams.
+- **Audio Conversion**: Transcoding audio to formats like Opus or WAV preserves source fidelity within the bounds of the source encoding, but cannot reconstruct frequencies lost during lossy server compression.
 
 ## Platform Support
 VRKA is officially built and packaged for **Windows 10 and Windows 11 (x64)**. Embedded browser-assisted capture requires the Microsoft Edge WebView2 Runtime, which is pre-installed on modern Windows systems.
 
-## Unsigned Windows Binaries
-Official release binaries are currently self-published and not signed with an EV Code Signing Certificate. Windows Defender SmartScreen may display an unrecognized publisher warning upon first launch. Verify the SHA-256 hash against `SHA256SUMS.txt` before execution.
+## Release Distribution & Integrity
+Official release binaries are currently self-published and not signed with an EV Code Signing Certificate. Windows Defender SmartScreen may display an unrecognized publisher warning upon first launch. Verify the SHA-256 hash against `SHA256SUMS.txt` before execution. Application update manifests use SHA-256 integrity validation over TLS to protect against transfer corruption.

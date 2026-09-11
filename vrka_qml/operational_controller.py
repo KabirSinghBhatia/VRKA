@@ -1,23 +1,30 @@
-"""Operational integration for Stage 7: browser fallback, MediaObserver, yt-dlp updater.
-
-Presentation layer only. No WebView2 objects, no scheduler co-ownership, no
-second queue/event bus. Browser events flow via the existing Bridge typed
-signals (single queue consumer). Observer/updater run in worker threads and
-post results to the GUI thread via Qt queued signals.
+"""Operational integration for VRKA 4.5: Browser fallback, MediaObserver, yt-dlp updater,
+Application self-updater, browser session clearing, and sanitized diagnostics.
 """
 
 from __future__ import annotations
 
+import os
+import platform
+import shutil
+import sys
 import threading
+from pathlib import Path
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtGui import QGuiApplication
 
 import vrka_downloader as app
+from vrka_core.header_security import redact_secrets_from_text
+from .app_updater import (
+    AppUpdateInfo,
+    check_for_application_update,
+    download_and_verify_update,
+)
 
 
 class OperationalController(QObject):
-    # Browser session state machine (mirrors 3.0 ui_queue contracts):
-    # idle -> needed -> ready | error
+    # Browser session state machine
     browserStateChanged = Signal()
     browserErrorChanged = Signal()
     browserNeededUrlChanged = Signal()
@@ -29,12 +36,22 @@ class OperationalController(QObject):
     observerHealthChanged = Signal()
     observerStatusTextChanged = Signal()
 
-    # Updater
+    # yt-dlp Component Updater
     updaterBusyChanged = Signal()
     updaterStatusTextChanged = Signal()
     updaterCurrentVersionChanged = Signal()
     updaterAvailableVersionChanged = Signal()
     updaterUpdateAvailableChanged = Signal()
+
+    # Application Self-Updater
+    appUpdateBusyChanged = Signal()
+    appUpdateStatusTextChanged = Signal()
+    appUpdateAvailableChanged = Signal()
+    appUpdateLatestVersionChanged = Signal()
+    appUpdateReleaseNotesChanged = Signal()
+
+    # Diagnostics
+    diagnosticsTextChanged = Signal()
 
     def __init__(self, engine_host, bridge, settings_state, parent=None):
         super().__init__(parent)
@@ -42,7 +59,7 @@ class OperationalController(QObject):
         self._bridge = bridge
         self._settings = settings_state
 
-        self._browser_state: str = "idle"  # idle | needed | ready | error
+        self._browser_state: str = "idle"
         self._browser_error: str = ""
         self._browser_needed_url: str = ""
         self._browser_needed_category: str = ""
@@ -57,18 +74,26 @@ class OperationalController(QObject):
         self._updater_available_version: str = ""
         self._updater_update_available: bool = False
 
-        # Wire existing bridge signals (single queue consumer stays intact)
+        self._app_update_busy: bool = False
+        self._app_update_status_text: str = "Ready to check for application updates."
+        self._app_update_available: bool = False
+        self._app_update_latest_version: str = ""
+        self._app_update_release_notes: str = ""
+        self._cached_update_info: AppUpdateInfo | None = None
+
+        self._diagnostics_text: str = ""
+
+        # Wire existing bridge signals
         bridge.browserNeeded.connect(self._on_browser_needed)
         bridge.browserSessionReady.connect(self._on_browser_ready)
         bridge.browserSessionError.connect(self._on_browser_error)
 
-        # Seed initial operational snapshots (observer only; updater deferred to avoid yt-dlp at startup).
         self._refresh_observer_snapshot()
         self._updater_status_text = "yt-dlp runtime not yet queried — open Settings to refresh."
         self._updater_current_version = "deferred"
 
     # ------------------------------------------------------------------
-    # Browser session (event-driven via bridge)
+    # Browser session & Fallback
     # ------------------------------------------------------------------
 
     @Property(str, notify=browserStateChanged)
@@ -102,14 +127,12 @@ class OperationalController(QObject):
         self.browserErrorChanged.emit()
 
     def _on_browser_ready(self, payload: dict) -> None:
-        # payload is from browser_session_ready: ok, media_candidates, etc.
         try:
             count = len(list(payload.get("media_candidates") or [])[:10])
             observed = int(payload.get("observed_request_count") or 0)
             self._browser_ready_summary = f"Session ready: {observed} request(s), {count} candidate(s)"
         except Exception:
             self._browser_ready_summary = "Session ready"
-        # Also mirror host verified session for retry propagation if needed.
         try:
             self._host._verified_session = dict(payload)
         except Exception:
@@ -139,31 +162,28 @@ class OperationalController(QObject):
         self._browser_needed_category = ""
         self._browser_ready_summary = ""
 
-    @Slot()
-    def openVerificationWindow(self) -> None:
-        # Presentation-only trigger: in 3.0 this opened pywebview verification window.
-        # In QML the same backend path is exercised via the scheduler's browser fallback;
-        # here we surface a log entry and keep the status machine idle/needed.
-        try:
-            self._host.ui_queue.put(("log", "Browser verification window requested (QML stub)."))
-        except Exception:
-            pass
-        self.browserStateChanged.emit()
-        self.browserErrorChanged.emit()
-        self.browserNeededUrlChanged.emit()
-        self.browserNeededCategoryChanged.emit()
-        self.browserReadySummaryChanged.emit()
-
-    @Property(bool)
-    def browserFallbackEnabled(self) -> bool:
-        # 3.0 disables fallback only for custom command mode; otherwise enabled.
-        # Download mode comes from Settings or DownloadPage; we expose the
-        # persistent default (Settings.mode) and DownloadController handles
-        # per-task override. For operational display, fallback is available.
-        return True
+    @Slot(result=str)
+    def clearBrowserSessionData(self) -> str:
+        """Purge WebView2 session storage (cookies, cache, local storage) without touching settings or queue."""
+        local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        cleared_paths = []
+        possible_dirs = [
+            local_app_data / "VRKA" / "EBWebView",
+            local_app_data / "VRKA" / "browser_profile",
+            local_app_data / "VRKA" / "webview2_data",
+        ]
+        for p in possible_dirs:
+            if p.exists() and p.is_dir():
+                try:
+                    shutil.rmtree(p, ignore_errors=True)
+                    cleared_paths.append(p.name)
+                except Exception:
+                    pass
+        self.clearBrowserSession()
+        return "Browser session data, cache, and cookies purged successfully."
 
     # ------------------------------------------------------------------
-    # MediaObserver (on-demand, worker-threaded)
+    # MediaObserver
     # ------------------------------------------------------------------
 
     @Property(str, notify=observerStatusTextChanged)
@@ -176,7 +196,7 @@ class OperationalController(QObject):
 
     def _refresh_observer_snapshot(self) -> None:
         try:
-            text = self._host._media_observer_status_text()  # delegated from VRKADownloader
+            text = self._host._media_observer_status_text()
         except Exception as exc:
             text = f"Media observer status unavailable: {exc}"
             self._observer_health_ok = False
@@ -184,7 +204,6 @@ class OperationalController(QObject):
             self.observerStatusTextChanged.emit()
             self.observerHealthChanged.emit()
             return
-        # Determine health via adapter health() when available.
         health_ok = False
         try:
             adapter = self._host._media_observer_adapter()
@@ -199,69 +218,10 @@ class OperationalController(QObject):
 
     @Slot()
     def refreshObserverStatus(self) -> None:
-        # Synchronous refresh (no network) — safe on GUI thread.
         self._refresh_observer_snapshot()
 
-    @Slot()
-    def checkObserverUpdate(self) -> None:
-        if self._updater_busy:
-            return
-        self._updater_busy = True
-        self.updaterBusyChanged.emit()
-        # This slot is for observer check; re-use updater busy flag for simplicity
-        # But expose observer via status text after worker.
-        def _worker():
-            try:
-                from vrka_core.media_observer import check_for_update
-                info = check_for_update()
-                if info.get("error"):
-                    text = f"Observer check failed: {info.get('error')}"
-                elif info.get("update_available"):
-                    text = f"Update available: {info.get('available_version')} (installed {info.get('current_version')})"
-                else:
-                    text = f"Observer up to date (latest {info.get('available_version')})"
-                self._observer_status_text = text
-                self.observerStatusTextChanged.emit()
-                # Also refresh health snapshot
-                self._refresh_observer_snapshot()
-            except Exception as exc:
-                self._observer_status_text = f"Observer check error: {exc}"
-                self.observerStatusTextChanged.emit()
-            finally:
-                self._updater_busy = False
-                self.updaterBusyChanged.emit()
-        threading.Thread(target=_worker, daemon=True).start()
-
-    @Slot()
-    def applyObserverUpdate(self) -> None:
-        if self._updater_busy:
-            return
-        self._updater_busy = True
-        self._observer_status_text = "Updating media observer..."
-        self.observerStatusTextChanged.emit()
-        self.updaterBusyChanged.emit()
-        def _worker():
-            try:
-                from vrka_core.media_observer import apply_update
-                result = apply_update()
-                if result.get("updated"):
-                    self._observer_status_text = f"Updated to {result.get('installed_version')}"
-                elif result.get("message"):
-                    self._observer_status_text = str(result.get("message"))
-                else:
-                    self._observer_status_text = f"Observer update failed: {result.get('error')}"
-                self.observerStatusTextChanged.emit()
-                self._refresh_observer_snapshot()
-            except Exception as exc:
-                self._observer_status_text = f"Observer update error: {exc}"
-                self.observerStatusTextChanged.emit()
-            finally:
-                self._updater_busy = False
-                self.updaterBusyChanged.emit()
-        threading.Thread(target=_worker, daemon=True).start()
-
     # ------------------------------------------------------------------
-    # yt-dlp updater (worker-threaded, mirrors VRKADownloader.run_update flow)
+    # yt-dlp Component Updater
     # ------------------------------------------------------------------
 
     @Property(bool, notify=updaterBusyChanged)
@@ -300,10 +260,11 @@ class OperationalController(QObject):
         if self._updater_busy:
             return
         self._updater_busy = True
-        self._updater_status_text = "Checking for yt-dlp updates..."
+        self._updater_status_text = "Checking for yt-dlp engine updates..."
         self.updaterBusyChanged.emit()
         self.updaterStatusTextChanged.emit()
         channel = str(self._settings.ytdlpChannel) if self._settings else app.DEFAULT_YTDLP_CHANNEL
+
         def _worker():
             try:
                 info = app.check_ytdlp_update(channel)
@@ -325,6 +286,7 @@ class OperationalController(QObject):
             finally:
                 self._updater_busy = False
                 self.updaterBusyChanged.emit()
+
         threading.Thread(target=_worker, daemon=True).start()
 
     @Slot()
@@ -336,6 +298,7 @@ class OperationalController(QObject):
         self.updaterBusyChanged.emit()
         self.updaterStatusTextChanged.emit()
         channel = str(self._settings.ytdlpChannel) if self._settings else app.DEFAULT_YTDLP_CHANNEL
+
         def _worker():
             try:
                 installed = app.install_ytdlp_update(channel)
@@ -348,6 +311,7 @@ class OperationalController(QObject):
             finally:
                 self._updater_busy = False
                 self.updaterBusyChanged.emit()
+
         threading.Thread(target=_worker, daemon=True).start()
 
     @Slot()
@@ -358,6 +322,7 @@ class OperationalController(QObject):
         self._updater_status_text = "Rolling back yt-dlp..."
         self.updaterBusyChanged.emit()
         self.updaterStatusTextChanged.emit()
+
         def _worker():
             try:
                 info = app.rollback_ytdlp_update()
@@ -370,7 +335,138 @@ class OperationalController(QObject):
             finally:
                 self._updater_busy = False
                 self.updaterBusyChanged.emit()
+
         threading.Thread(target=_worker, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # In-App Application Self-Updater
+    # ------------------------------------------------------------------
+
+    @Property(bool, notify=appUpdateBusyChanged)
+    def appUpdateBusy(self) -> bool:
+        return self._app_update_busy
+
+    @Property(str, notify=appUpdateStatusTextChanged)
+    def appUpdateStatusText(self) -> str:
+        return self._app_update_status_text
+
+    @Property(bool, notify=appUpdateAvailableChanged)
+    def appUpdateAvailable(self) -> bool:
+        return self._app_update_available
+
+    @Property(str, notify=appUpdateLatestVersionChanged)
+    def appUpdateLatestVersion(self) -> str:
+        return self._app_update_latest_version
+
+    @Property(str, notify=appUpdateReleaseNotesChanged)
+    def appUpdateReleaseNotes(self) -> str:
+        return self._app_update_release_notes
+
+    @Slot()
+    def checkAppUpdate(self) -> None:
+        if self._app_update_busy:
+            return
+        self._app_update_busy = True
+        self._app_update_status_text = "Checking GitHub Releases for VRKA updates..."
+        self.appUpdateBusyChanged.emit()
+        self.appUpdateStatusTextChanged.emit()
+
+        def _worker():
+            try:
+                info = check_for_application_update("4.5")
+                self._cached_update_info = info
+                if info is None:
+                    self._app_update_status_text = "Could not parse release metadata."
+                    self._app_update_available = False
+                elif info.is_newer:
+                    self._app_update_available = True
+                    self._app_update_latest_version = info.latest_version
+                    self._app_update_release_notes = info.release_notes
+                    self._app_update_status_text = f"New version available: v{info.latest_version}"
+                else:
+                    self._app_update_available = False
+                    self._app_update_latest_version = info.latest_version
+                    self._app_update_status_text = f"VRKA 4.5 is up to date (latest v{info.latest_version})."
+                self.appUpdateAvailableChanged.emit()
+                self.appUpdateLatestVersionChanged.emit()
+                self.appUpdateReleaseNotesChanged.emit()
+                self.appUpdateStatusTextChanged.emit()
+            except Exception as exc:
+                self._app_update_status_text = f"Update check failed: {exc}"
+                self.appUpdateStatusTextChanged.emit()
+            finally:
+                self._app_update_busy = False
+                self.appUpdateBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @Slot()
+    def downloadAndInstallAppUpdate(self) -> None:
+        if self._app_update_busy or not self._cached_update_info:
+            return
+        self._app_update_busy = True
+        self._app_update_status_text = "Downloading verified installer package..."
+        self.appUpdateBusyChanged.emit()
+        self.appUpdateStatusTextChanged.emit()
+
+        def _worker():
+            try:
+                def _prog(cur, total):
+                    if total > 0:
+                        pct = int((cur / total) * 100)
+                        self._app_update_status_text = f"Downloading update: {pct}% ({cur // 1024} KB / {total // 1024} KB)"
+                        self.appUpdateStatusTextChanged.emit()
+
+                target_exe = download_and_verify_update(self._cached_update_info, progress_cb=_prog)
+                self._app_update_status_text = f"Verified package ready: {target_exe.name}. Launching setup..."
+                self.appUpdateStatusTextChanged.emit()
+                # Launch verified setup executable safely
+                os.startfile(str(target_exe))
+            except Exception as exc:
+                self._app_update_status_text = f"Update download failed: {exc}"
+                self.appUpdateStatusTextChanged.emit()
+            finally:
+                self._app_update_busy = False
+                self.appUpdateBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # Sanitized Diagnostics
+    # ------------------------------------------------------------------
+
+    @Slot(result=str)
+    def exportSanitizedDiagnostics(self) -> str:
+        """Collect and sanitize full operational diagnostics, copying to system clipboard."""
+        lines = [
+            "=== VRKA 4.5 OPERATIONAL DIAGNOSTICS ===",
+            f"OS: {platform.system()} {platform.release()} (x64) - Python {sys.version.split()[0]}",
+            f"PySide6: {app.PySide6.__version__ if hasattr(app, 'PySide6') else 'Loaded'}",
+            f"Application Version: 4.5 (Build 018)",
+            f"Active Output Folder: {self._host.output_folder}",
+            f"Active yt-dlp: {self._updater_current_version}",
+            f"Media Observer Health: {'OK' if self._observer_health_ok else 'Inactive/Degraded'}",
+            f"Browser Session State: {self._browser_state}",
+            f"Active Queue Tasks: {self._bridge.activeCount} | Queued: {self._bridge.queuedCount} | Archived: {self._bridge.historyCount}",
+            "",
+            "=== RECENT RELEVANT EVENTS ===",
+        ]
+        # Append sanitized recent log entries
+        for row in range(min(40, self._bridge.activity.rowCount())):
+            idx = self._bridge.activity.index(row, 0)
+            msg = self._bridge.activity.data(idx, 0x0100 + 1)  # MessageRole
+            lvl = self._bridge.activity.data(idx, 0x0100 + 2)  # LevelRole
+            lines.append(f"[{lvl}] {msg}")
+
+        full_text = "\n".join(lines)
+        sanitized = redact_secrets_from_text(full_text)
+
+        # Copy to clipboard
+        clipboard = QGuiApplication.clipboard()
+        if clipboard:
+            clipboard.setText(sanitized)
+
+        return sanitized
 
     @Slot()
     def openNotices(self) -> None:
