@@ -63,7 +63,7 @@ def main():
 
     readme_path = PORTABLE_DIR / "README.txt"
     readme_path.write_text(
-        "VRKA 4.0.0 — portable Windows x64\n\n"
+        "VRKA 4.5.0 — portable Windows x64\n\n"
         "Run VRKA.exe directly. Python, pip and administrator access are not required.\n"
         "Verify against SHA256SUMS.txt before running.\n",
         encoding="utf-8"

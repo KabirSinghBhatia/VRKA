@@ -10,32 +10,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.5.0] - 2026-09-12 (Build 018)
 
 ### Added
-- **Modernized Qt Quick QML Desktop Interface**: Re-engineered desktop shell featuring a neutral floating sidebar island, custom Windows title bar with native DWM framing and 16x16 wolf identity, and responsive card layouts.
-- **Dynamic Fonts Preference**: Dedicated user-facing Fonts preference supporting Monospace and System Default.
-- **Independent Component Update State Machine**: Isolated operational status management for uBlock Origin Lite rulesets, Puemos media observer, and core yt-dlp engine.
-- **Cryptographic Release Verification**: Comprehensive OpenPGP release signature verification enforcing the pinned trusted release key fingerprint (`71165A658B3A8612AC2568C6D519380BEBA1B9F7`).
-- **Instant Browser Session Purge**: Direct Settings action to completely flush cookies, DOM storage, and network cache from the WebView2 fallback subsystem.
+- Added the new Qt 6 QML Windows interface with custom title bar and floating sidebar.
+- Added configurable download location behavior (Remember Location vs Ask Every Time).
+- Added in-app application updates with SHA-256 validation and rollback support.
+- Added supported component updates for yt-dlp, uBlock Origin Lite, and Puemos.
+- Added custom HTTP header support with strict validation.
+- Added custom yt-dlp command options with a safety confirmation prompt.
+- Added browser session and cache clearing in Settings.
+- Added light and dark interface themes.
+- Added Monospace and System Default font choices.
 
 ### Changed
-- **Balanced Download Page Geometry**: Centered content block with responsive card column layouts (2-column on wider screens, single column on narrower viewports) and balanced vertical centering.
-- **Settings Information Architecture**: Streamlined Settings hierarchy with Download Destination, Fonts, Component Updates, Authentication, Subtitles, Media, Network & File Output, Browser Privacy, Custom yt-dlp Command, Diagnostics, Application Updates, and About VRKA.
-- **User Interface Copy Refinements**: Enforced exact, concise copy across all settings and cards (`Custom yt-dlp Command`, `Monospace`, `System Default`, `VRKA`).
+- Reworked the Download, Queue, History, and Settings pages for improved clarity and responsive scaling.
+- Improved media quality selection based on resolution, frame rate, bitrate, and codec efficiency.
+- Improved diagnostics and privacy handling with automated credential scrubbing.
+- Documented MP3, Opus, and WAV as standard audio extraction options.
 
 ### Fixed
-- **Maximized Window Framing**: Resolved maximized window edge bleeding by enforcing square corners (`radius: 0`), zero border width, and solid background framing when maximized.
-- **UPLINK Status Reactivity**: Ensured seamless real-time status transitions between Ready, Queued, and Active download states.
-- **Asynchronous Subsystem Startup**: Decoupled background component checks from initial UI presentation, guaranteeing instant window display.
+- Fixed maximized window framing and border alignment on Windows.
+- Fixed UPLINK status transitions between ready, active, and queued states.
+- Fixed asynchronous subsystem startup to ensure instant window display.
+- Fixed version consistency across project configuration, code, and documentation.
+
+### Security
+- Enforced strict RFC 7230 token validation and CRLF injection prevention for HTTP headers.
+- Implemented cryptographic release verification using pinned OpenPGP signing keys.
+- Enhanced updater security with HTTPS requirements and redirect allowlisting.
 
 ---
 
 ## [4.0.1] - 2026-09-01 (Build 017)
 
 ### Fixed
-- **UPLINK Status Stuck on QUEUED**: Fixed an issue where the compact sidebar UPLINK status indicator and telemetry console remained stuck at `UPLINK QUEUED` (yellow) after a task finished. Connected `TaskListModel.dataChanged` and `layoutChanged` signals to bridge property notifications so transitions to `UPLINK LIVE` (green) propagate reactively.
+- **UPLINK Status Stuck on QUEUED**: Fixed an issue where the compact sidebar UPLINK status indicator remained stuck at `UPLINK QUEUED` (yellow) after a task finished. Connected `TaskListModel.dataChanged` and `layoutChanged` signals to bridge property notifications so transitions to `UPLINK LIVE` (green) propagate reactively.
 - **Dynamic Version Labels**: Bound application and settings window version headers dynamically to `APP_DISPLAY_VERSION`.
 
 ### Added
-- **UPLINK State Machine Regression Coverage**: Added comprehensive test suite (`tests/test_uplink_state.py`) verifying state transitions across task insertion, active downloading, completion, error, cancellation, and multi-task queue scenarios.
+- **UPLINK State Machine Regression Coverage**: Added test suite (`tests/test_uplink_state.py`) verifying state transitions across task insertion, active downloading, completion, error, cancellation, and multi-task queue scenarios.
 - **Dedicated Test Directory Layout**: Consolidated test suites into `tests/` supporting standard `python -m unittest discover -s tests`.
 
 ### Changed
@@ -46,8 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.0.0] - 2026-09-01 (Build 016)
 
 ### Added
-- **Qt 6 QML Desktop Interface**: Completely re-engineered frontend using PySide6 and Qt Quick for smooth rendering, responsive layout, and visual fidelity.
-- **UPLINK Telemetry Console**: Sidebar console displaying real-time task queue statistics (Queued, Active, Archived, Done).
+- **Qt 6 QML Desktop Interface**: Completely re-engineered frontend using PySide6 and Qt Quick for smooth rendering and responsive layout.
+- **UPLINK Status Console**: Sidebar console displaying real-time task queue statistics (Queued, Active, Archived, Done).
 - **Theme System**: Dedicated Day / Night theme toggle with compact capsule design and animated sliding indicator.
 - **Selectable Activity Log**: High-performance multi-line activity log supporting text selection, `Ctrl+A` select-all, and `Ctrl+C` copying.
 - **Passive Browser Fallback Subsystem**: Isolated WebView2 execution with uBlock Origin Lite content protection, ranking HLS master manifests, DASH, and direct MP4 streams.

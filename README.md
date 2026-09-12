@@ -61,15 +61,15 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 
 ## Features
 
-- **Modern Frameless Desktop Experience**: Custom Windows title bar with native snap layout compatibility, edge/corner resizing, double-click maximize, and drag controls.
-- **Multi-Factor Quality Ranking**: Deterministic evaluation of resolution, framerate (up to 60 FPS), video bitrate, container compatibility, and codec efficiency (never choosing a newer codec over a higher-fidelity source stream).
-- **Responsive Qt 6 QML Interface**: Hardware-accelerated UI with fluid animations, adaptive typography switcher (Monospace vs System Default), and integrated Day/Night theme toggle.
+- **Custom Windows Title Bar**: Native window controls, snap layout compatibility, edge resizing, and smooth dragging.
+- **Multi-Factor Quality Ranking**: Evaluates resolution, frame rate (up to 60 FPS), bitrate, container, and codec efficiency to select the highest-fidelity stream.
+- **Responsive Qt 6 QML Interface**: Hardware-accelerated UI with refined dark and light themes, and typography selection between Monospace and System Default.
 - **Audio Extraction & Transcoding**: Extract audio in MP3 (320, 256, 192, 128 kbps), Opus, or uncompressed WAV formats.
-- **Flexible Destination Modes**: Choose between "Remember Location" (persisting chosen folder) or "Ask Every Time" (per-download location prompt).
-- **Advanced Network & Custom Headers**: Strict RFC 7230 header validation, CRLF/newline injection rejection, and automated secret scrubbing from logs.
-- **In-App Application & Engine Updater**: Direct in-app updates with rate-limited GitHub release checks, SHA-256 integrity verification, and atomic staging.
-- **Durable Task Queue**: Reliable single-worker FIFO scheduling with persistent state storage—downloads resume cleanly across application restarts.
-- **Passive Browser Fallback & Session Purge**: Isolated WebView2 session passively detects HLS/DASH media with built-in uBlock Origin Lite protection, with instant session data clearing in Settings.
+- **Flexible Destination Modes**: Choose between Remember Location (persists chosen folder) or Ask Every Time (prompts for each download).
+- **Advanced Network & Custom Headers**: Strict RFC 7230 header validation, CRLF injection rejection, and automatic secret scrubbing from logs.
+- **Secure In-App Updates**: Direct in-app application and component updates with SHA-256 verification and rollback support.
+- **Durable Task Queue**: Sequential single-worker FIFO queue with persistent state storage across application restarts.
+- **Passive Browser Fallback**: Isolated WebView2 session with uBlock Origin Lite protection for sites requiring browser observation, and one-click session clearing.
 - **Sanitized Diagnostics**: Export redacted diagnostic reports for troubleshooting without leaking credentials or private session data.
 
 ---
