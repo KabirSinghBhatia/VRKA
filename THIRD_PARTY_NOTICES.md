@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-VRKA 4.0.1 (Build 017) utilizes the following open-source components:
+VRKA 4.5.0 (Build 018) utilizes the following open-source components:
 
 ---
 

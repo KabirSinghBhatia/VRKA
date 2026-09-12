@@ -62,8 +62,8 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 ## Features
 
 - **Modern Frameless Desktop Experience**: Custom Windows title bar with native snap layout compatibility, edge/corner resizing, double-click maximize, and drag controls.
-- **Multi-Factor Quality Ranking**: Holistic evaluation of resolution, 60 FPS frame rate, HDR color grading, video bitrate, container compatibility, and codec efficiency (never choosing a newer codec over a higher-fidelity source stream).
-- **Responsive Qt 6 QML Interface**: Hardware-accelerated UI with fluid animations, adaptive typography switcher (VRKA Monospace vs System Segoe UI), and integrated Day/Night theme toggle.
+- **Multi-Factor Quality Ranking**: Deterministic evaluation of resolution, framerate (up to 60 FPS), video bitrate, container compatibility, and codec efficiency (never choosing a newer codec over a higher-fidelity source stream).
+- **Responsive Qt 6 QML Interface**: Hardware-accelerated UI with fluid animations, adaptive typography switcher (Monospace vs System Default), and integrated Day/Night theme toggle.
 - **Audio Extraction & Transcoding**: Extract audio in MP3 (320, 256, 192, 128 kbps), Opus, or uncompressed WAV formats.
 - **Flexible Destination Modes**: Choose between "Remember Location" (persisting chosen folder) or "Ask Every Time" (per-download location prompt).
 - **Advanced Network & Custom Headers**: Strict RFC 7230 header validation, CRLF/newline injection rejection, and automated secret scrubbing from logs.

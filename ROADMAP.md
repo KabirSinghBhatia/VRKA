@@ -4,12 +4,13 @@ This document outlines planned improvements and future directions for VRKA.
 
 ---
 
-## Current Release (v4.0.1)
-- Native Qt 6 QML desktop interface with Day/Night theme toggle.
-- Single-worker FIFO task queue with persistent `tasks.json` storage and state recovery.
-- Automated passive Browser Fallback powered by uBlock Origin Lite content protection.
-- In-app yt-dlp runtime manager with SHA-256 validation and instant rollback.
-- High-fidelity audio extraction supporting MP3, WAV, and FLAC formats.
+## Current Release (v4.5.0 Build 018)
+- Modernized Qt 6 QML desktop interface with floating sidebar island, custom Windows title bar, and Day/Night theme toggle.
+- Single-worker FIFO task queue with persistent `tasks.json` storage and crash recovery.
+- Automated passive Browser Fallback powered by content-filtered WebView2 observation (uBlock Origin Lite and Puemos stream detection).
+- In-app yt-dlp runtime and component manager with SHA-256 validation and instant rollback.
+- Multi-factor quality selection and high-fidelity audio extraction supporting MP3 and WAV formats.
+- Complete browser privacy controls with one-click session and cache purging.
 
 ---
 

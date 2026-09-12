@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Modernized Qt Quick QML Desktop Interface**: Re-engineered desktop shell featuring a neutral floating sidebar island, custom Windows title bar with native DWM framing and 16x16 wolf identity, and responsive card layouts.
-- **Dynamic Fonts Preference**: Dedicated user-facing Fonts preference supporting Monospace (Space Mono) and System Default (Segoe UI Variable).
+- **Dynamic Fonts Preference**: Dedicated user-facing Fonts preference supporting Monospace and System Default.
 - **Independent Component Update State Machine**: Isolated operational status management for uBlock Origin Lite rulesets, Puemos media observer, and core yt-dlp engine.
 - **Cryptographic Release Verification**: Comprehensive OpenPGP release signature verification enforcing the pinned trusted release key fingerprint (`71165A658B3A8612AC2568C6D519380BEBA1B9F7`).
 - **Instant Browser Session Purge**: Direct Settings action to completely flush cookies, DOM storage, and network cache from the WebView2 fallback subsystem.
@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Maximized Window Framing**: Resolved maximized window edge bleeding by enforcing square corners (`radius: 0`), zero border width, and solid background framing when maximized.
-- **UPLINK Status Reactivity**: Ensured seamless real-time telemetry transitions between Ready, Queued, and Active download states.
+- **UPLINK Status Reactivity**: Ensured seamless real-time status transitions between Ready, Queued, and Active download states.
 - **Asynchronous Subsystem Startup**: Decoupled background component checks from initial UI presentation, guaranteeing instant window display.
 
 ---

@@ -48,4 +48,4 @@ Copy-Item -LiteralPath "dist\VRKA.exe" -Destination "VRKA-portable\VRKA.exe" -Fo
 Copy-Item -LiteralPath "THIRD_PARTY_NOTICES.md" -Destination "VRKA-portable\THIRD_PARTY_NOTICES.md" -Force
 
 & $InnoCompiler VRKA-4.0.iss
-Write-Host "Setup package created in outputs\VRKA-4.0.0-build016-release"
+Write-Host "Setup package created in releases\VRKA-4.5.0-Build-018"

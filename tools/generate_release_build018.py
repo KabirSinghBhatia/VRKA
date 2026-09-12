@@ -156,15 +156,16 @@ def run_test_suite() -> tuple[int, str]:
     return count, out
 
 
-def generate_release_package() -> None:
+def generate_release_package(source_only: bool = False) -> None:
     print("=" * 70)
     print("VRKA 4.5 BUILD 018 — AUTHORITATIVE RELEASE PACKAGING PIPELINE")
     print("=" * 70)
 
     # 1. Clean and initialize build-specific directory
-    if RELEASE_DIR.exists():
-        print(f">> Cleaning existing build directory: {RELEASE_DIR}")
-        shutil.rmtree(RELEASE_DIR)
+    if not source_only:
+        if RELEASE_DIR.exists():
+            print(f">> Cleaning existing build directory: {RELEASE_DIR}")
+            shutil.rmtree(RELEASE_DIR)
     RELEASE_DIR.mkdir(parents=True, exist_ok=True)
     print(f"[OK] Target release directory initialized: {RELEASE_DIR}")
 
@@ -173,34 +174,41 @@ def generate_release_package() -> None:
     test_count, test_output = run_test_suite()
     print(f"[OK] All {test_count} tests PASSED.")
 
-    # 3. Build/Stage PyInstaller Binary
-    dist_exe = build_pyinstaller_binary()
-
-    # Stage VRKA-portable
-    PORTABLE_SOURCE.mkdir(parents=True, exist_ok=True)
-    portable_exe = PORTABLE_SOURCE / "VRKA.exe"
-    shutil.copy2(dist_exe, portable_exe)
-    shutil.copy2(PROJECT_ROOT / "THIRD_PARTY_NOTICES.md", PORTABLE_SOURCE / "THIRD_PARTY_NOTICES.md")
-
-    # 4. Create Release Artifacts
-    # A. Portable EXE
     dest_portable_exe = RELEASE_DIR / FN_PORTABLE_EXE
-    shutil.copy2(dist_exe, dest_portable_exe)
-    print(f"[OK] Created {FN_PORTABLE_EXE} ({dest_portable_exe.stat().st_size:,} bytes)")
-
-    # B. Portable ZIP
     dest_portable_zip = RELEASE_DIR / FN_PORTABLE_ZIP
-    with zipfile.ZipFile(dest_portable_zip, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, _, files in os.walk(PORTABLE_SOURCE):
-            for f in files:
-                fp = Path(root) / f
-                rel = fp.relative_to(PORTABLE_SOURCE)
-                zf.write(fp, arcname=str(Path("VRKA-4.5.0-portable") / rel))
-    print(f"[OK] Created {FN_PORTABLE_ZIP} ({dest_portable_zip.stat().st_size:,} bytes)")
+    setup_exe = RELEASE_DIR / FN_SETUP_EXE
 
-    # C. Inno Setup Installer
-    iss_file = PROJECT_ROOT / "VRKA-4.0.iss"
-    setup_exe = compile_inno_setup(iss_file)
+    if not source_only:
+        # 3. Build/Stage PyInstaller Binary
+        dist_exe = build_pyinstaller_binary()
+
+        # Stage VRKA-portable
+        PORTABLE_SOURCE.mkdir(parents=True, exist_ok=True)
+        portable_exe = PORTABLE_SOURCE / "VRKA.exe"
+        shutil.copy2(dist_exe, portable_exe)
+        shutil.copy2(PROJECT_ROOT / "THIRD_PARTY_NOTICES.md", PORTABLE_SOURCE / "THIRD_PARTY_NOTICES.md")
+
+        # 4. Create Release Artifacts
+        # A. Portable EXE
+        shutil.copy2(dist_exe, dest_portable_exe)
+        print(f"[OK] Created {FN_PORTABLE_EXE} ({dest_portable_exe.stat().st_size:,} bytes)")
+
+        # B. Portable ZIP
+        with zipfile.ZipFile(dest_portable_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _, files in os.walk(PORTABLE_SOURCE):
+                for f in files:
+                    fp = Path(root) / f
+                    rel = fp.relative_to(PORTABLE_SOURCE)
+                    zf.write(fp, arcname=str(Path("VRKA-4.5.0-portable") / rel))
+        print(f"[OK] Created {FN_PORTABLE_ZIP} ({dest_portable_zip.stat().st_size:,} bytes)")
+
+        # C. Inno Setup Installer
+        iss_file = PROJECT_ROOT / "VRKA-4.0.iss"
+        setup_exe = compile_inno_setup(iss_file)
+    else:
+        print("[INFO] Re-packaging Source.zip only; preserving existing binary artifacts.")
+        if not dest_portable_exe.exists() or not dest_portable_zip.exists():
+            raise FileNotFoundError("Existing binary artifacts missing from release directory")
 
     # D. Source ZIP
     dest_source_zip = RELEASE_DIR / FN_SOURCE_ZIP
@@ -365,7 +373,7 @@ def generate_release_package() -> None:
 
 1. `tests.test_release_authenticity` (11 tests): OpenPGP signature verification, key pinning, tampered artifact detection, missing signature rejection, checksum disagreement.
 2. `tests.test_header_security` (8 tests): RFC 7230 token validation, CRLF/newline injection rejection, secret scrubber.
-3. `tests.test_quality_ranking` (4 tests): Multi-factor quality scoring, 60fps boost, high-bitrate vs starved AV1 streams.
+3. `tests.test_quality_ranking` (5 tests): Multi-factor quality scoring, 60fps boost, high-bitrate vs starved AV1 streams, no arbitrary HDR bonus.
 4. `tests.test_app_updater` (4 tests): SemanticVersion comparison, SafeRedirectHandler host whitelist, SHA-256 verification.
 5. `tests.test_settings_and_parity` (4 tests): Typography setting, destination mode, browser session purge, sanitized diagnostics.
 6. `tests.test_version_consistency` (3 tests): Version synchronization across pyproject.toml, vrka_downloader, and vrka_qml.
@@ -482,4 +490,5 @@ VRKA 4.5 implements an authenticated OpenPGP release verification model:
 
 
 if __name__ == "__main__":
-    generate_release_package()
+    source_only_mode = "--refresh-source" in sys.argv or "--source-only" in sys.argv
+    generate_release_package(source_only=source_only_mode)

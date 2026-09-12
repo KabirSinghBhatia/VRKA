@@ -1,5 +1,23 @@
 # VRKA Release Notes
 
+## VRKA 4.5.0 (Build 018)
+
+**Version**: 4.5.0 (Build 018)
+**Release Date**: 2026-09-12
+**Target Platform**: Windows 10/11 x64
+**License**: GPL-3.0-or-later
+
+### Highlights in 4.5.0
+- **Modernized Qt Quick Desktop Interface**: Refined desktop shell featuring a floating sidebar island, custom Windows title bar with native DWM framing and wolf identity, and responsive card layouts.
+- **Dynamic Fonts Preference**: Dedicated user-facing Fonts preference supporting Monospace and System Default.
+- **Independent Component Update State Machine**: Isolated operational status management for uBlock Origin Lite rulesets, Puemos media observer, and core yt-dlp engine with SHA-256 verification.
+- **Browser Privacy Controls**: Direct Settings action to completely purge cookies, DOM storage, and network cache from the WebView2 fallback subsystem.
+- **Cryptographic Release Verification**: OpenPGP release signature verification enforcing the pinned trusted release key fingerprint (`71165A658B3A8612AC2568C6D519380BEBA1B9F7`).
+- **Balanced Download Page Geometry**: Responsive multi-column layout on wider displays, single column on compact viewports, and balanced vertical centering.
+- **Deterministic Quality Selection**: Multi-factor quality selection based on verified resolution, framerate, bitrate, and codec efficiency without arbitrary bonuses.
+
+---
+
 ## VRKA 4.0.1 (Build 017)
 
 **Version**: 4.0.1 (Build 017)

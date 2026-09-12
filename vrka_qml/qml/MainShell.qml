@@ -256,7 +256,7 @@ ApplicationWindow {
                         }
                     }
 
-                    // Authoritative UPLINK Telemetry Console (Anchored at Very Bottom)
+                    // Authoritative UPLINK Status Console (Anchored at Very Bottom)
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.leftMargin: 12
@@ -304,7 +304,7 @@ ApplicationWindow {
                                 color: Theme.border
                             }
 
-                            // Symmetrical 2x2 Telemetry Grid (Equal Column Widths, Aligned Labels & Values)
+                            // Symmetrical 2x2 Metrics Grid (Equal Column Widths, Aligned Labels & Values)
                             GridLayout {
                                 Layout.fillWidth: true
                                 columns: 2

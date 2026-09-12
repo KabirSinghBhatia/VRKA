@@ -92,5 +92,35 @@ class QualityRankingTests(unittest.TestCase):
         self.assertEqual(spec_audio, "bestaudio/best")
 
 
+    def test_no_arbitrary_hdr_or_10bit_bonus(self):
+        """Verify that HDR/10-bit streams do not receive an arbitrary score boost over SDR."""
+        sdr_stream = {
+            "format_id": "137",
+            "height": 1080,
+            "width": 1920,
+            "fps": 60,
+            "vbr": 6000,
+            "vcodec": "avc1",
+            "dynamic_range": "SDR",
+        }
+        hdr_stream = {
+            "format_id": "299",
+            "height": 1080,
+            "width": 1920,
+            "fps": 60,
+            "vbr": 5000,
+            "vcodec": "avc1",
+            "dynamic_range": "HDR10",
+        }
+        profile = QualityProfile(target_quality="1080p (Full HD)", prefer_60fps=True)
+        sdr_score = calculate_format_score(sdr_stream, profile)
+        hdr_score = calculate_format_score(hdr_stream, profile)
+        self.assertGreater(
+            sdr_score,
+            hdr_score,
+            "Higher bitrate SDR stream must outrank lower bitrate HDR stream without arbitrary bonus",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

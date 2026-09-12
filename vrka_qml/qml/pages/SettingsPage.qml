@@ -1033,10 +1033,10 @@ ScrollView {
             }
         }
 
-        // Section 10: System Diagnostics & Telemetry
+        // Section 10: System Diagnostics
         VCard {
             Layout.fillWidth: true
-            headerTitle: "System Diagnostics & Telemetry"
+            headerTitle: "System Diagnostics"
             headerSubtitle: "Sanitized diagnostic export for troubleshooting"
             headerIcon: Qt.resolvedUrl("../../../assets/branding/v2icons/gear-accent-32.png")
 

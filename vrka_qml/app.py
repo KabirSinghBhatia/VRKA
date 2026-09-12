@@ -298,21 +298,69 @@ def main(argv: list[str] | None = None) -> int:
         os.makedirs(capture_dir, exist_ok=True)
 
         def _run_suite():
+            # Enforce 100% sanitized synthetic paths and state for documentation captures (Zero personal information)
+            settings.outputFolder = "C:\\Users\\Example\\Downloads"
+            bridge.history.set_entries([
+                {
+                    "id": "synthetic-hist-1",
+                    "title": "Quantum Physics - Complete Lecture Series [1080p 60fps]",
+                    "url": "https://example.com/watch?v=quantum-physics",
+                    "path": "C:\\Users\\Example\\Downloads\\Quantum_Physics.mp4",
+                    "mode": "video",
+                    "timestamp": "2026-09-12 10:30",
+                },
+                {
+                    "id": "synthetic-hist-2",
+                    "title": "Nature Documentary: Deep Ocean 4K [Best Available]",
+                    "url": "https://example.com/watch?v=deep-ocean-4k",
+                    "path": "C:\\Users\\Example\\Downloads\\Deep_Ocean_4K.mp4",
+                    "mode": "video",
+                    "timestamp": "2026-09-12 09:15",
+                }
+            ])
+            bridge.tasks.upsert(
+                "task-demo-1",
+                title="Cosmos: A Spacetime Odyssey [1080p 60fps AV1]",
+                url="https://example.com/watch?v=cosmos",
+                status="downloading",
+                progress=0.685,
+                stage="Downloading 68.5%",
+                speed="14.2 MB/s",
+                eta="00:00:18",
+                outputPath="C:\\Users\\Example\\Downloads\\Cosmos.mp4",
+            )
+            bridge.tasks.upsert(
+                "task-demo-2",
+                title="Synthwave Cyberpunk Ambient Mix [Opus 160kbps]",
+                url="https://example.com/watch?v=synthwave",
+                status="queued",
+                progress=0.0,
+                stage="Waiting",
+                speed="",
+                eta="",
+                outputPath="C:\\Users\\Example\\Downloads\\Synthwave.opus",
+            )
+            bridge.log.clear()
+            bridge.log.append_messages([
+                "[Core] VRKA Media Engine 4.5 initialized successfully.",
+                "[Network] TLS connection established with content CDN.",
+                "[Engine] yt-dlp 2026.8.19 backend verified.",
+                "[Queue] Task task-demo-1 started: Cosmos: A Spacetime Odyssey",
+            ])
+
             steps = [
-                ("01_download_dark", 1240, 820, 0, True, 0, False),
-                ("02_download_advanced_options", 1240, 820, 0, True, 0, True),
-                ("03_settings_top", 1240, 820, 3, True, 0, False),
-                ("04_settings_component_updates", 1240, 820, 3, True, 300, False),
-                ("05_settings_custom_command", 1240, 820, 3, True, 1600, False),
-                ("06_settings_application_updates", 1240, 820, 3, True, 2100, False),
-                ("07_download_light", 1240, 820, 0, False, 0, False),
-                ("08_queue_view", 1240, 820, 1, True, 0, False),
-                ("09_history_view", 1240, 820, 2, True, 0, False),
-                ("10_settings_about", 1240, 820, 3, True, 2500, False),
-                ("11_download_dark_maximized", 1920, 1080, 0, True, 0, False),
+                # (primary_name, alt_names, width, height, page_idx, dark, scroll_pos, expand_adv)
+                ("vrka45-download-dark", ["vrka-main"], 1240, 820, 0, True, 0, False),
+                ("vrka45-download-light", [], 1240, 820, 0, False, 0, False),
+                ("vrka45-queue-dark", ["vrka-queue"], 1240, 820, 1, True, 0, False),
+                ("vrka45-queue-light", [], 1240, 820, 1, False, 0, False),
+                ("vrka45-history-dark", ["vrka-history"], 1240, 820, 2, True, 0, False),
+                ("vrka45-history-light", [], 1240, 820, 2, False, 0, False),
+                ("vrka45-settings-dark", ["vrka-settings"], 1240, 820, 3, True, 0, False),
+                ("vrka45-settings-light", [], 1240, 820, 3, False, 0, False),
             ]
 
-            for name, w, h, page_idx, dark, scroll_pos, expand_adv in steps:
+            for name, aliases, w, h, page_idx, dark, scroll_pos, expand_adv in steps:
                 root_window.setWidth(w)
                 root_window.setHeight(h)
                 if "maximized" in name:
@@ -347,9 +395,11 @@ def main(argv: list[str] | None = None) -> int:
                     img.ready.connect(loop.quit)
                     QTimer.singleShot(1500, loop.quit)
                     loop.exec()
-                    out_path = capture_dir / f"{name}.png"
-                    img.saveToFile(str(out_path))
-                    print(f"[CAPTURE SUITE] Saved: {out_path.name}")
+                    all_names = [name] + aliases
+                    for n in all_names:
+                        out_path = capture_dir / f"{n}.png"
+                        img.saveToFile(str(out_path))
+                        print(f"[CAPTURE SUITE] Saved: {out_path.name}")
 
             print("[CAPTURE SUITE] Representative suite screenshots captured successfully from packaged app!")
             app.exit(0)

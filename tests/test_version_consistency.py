@@ -2,7 +2,14 @@
 
 from pathlib import Path
 import unittest
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError:
+        tomllib = None
+import re
 
 
 class VersionConsistencyTests(unittest.TestCase):
@@ -12,9 +19,14 @@ class VersionConsistencyTests(unittest.TestCase):
     def test_pyproject_version_is_4_5(self):
         pyproject_path = self.repo_root / "pyproject.toml"
         self.assertTrue(pyproject_path.exists(), "pyproject.toml missing")
-        with open(pyproject_path, "rb") as f:
-            data = tomllib.load(f)
-        version = data.get("project", {}).get("version", "")
+        if tomllib is not None:
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+            version = data.get("project", {}).get("version", "")
+        else:
+            content = pyproject_path.read_text(encoding="utf-8")
+            match = re.search(r'(?m)^version\s*=\s*["\']([^"\']+)["\']', content)
+            version = match.group(1) if match else ""
         self.assertTrue(version.startswith("4.5"), f"Expected 4.5.x in pyproject.toml, got {version}")
 
     def test_app_py_version_constants(self):

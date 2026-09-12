@@ -55,7 +55,6 @@ _CODEC_EFFICIENCY_MULTIPLIERS: dict[str, float] = {
 class QualityProfile:
     target_quality: str = "Best Available"
     prefer_60fps: bool = True
-    prefer_hdr: bool = True
     audio_format: str = "MP3"
     mp3_bitrate: str = "320 kbps"
 
@@ -76,7 +75,6 @@ def calculate_format_score(fmt: dict[str, Any], profile: QualityProfile) -> floa
     vbr = float(fmt.get("vbr") or fmt.get("tbr") or 0.0)
     abr = float(fmt.get("abr") or 0.0)
     vcodec = str(fmt.get("vcodec") or "").lower()
-    dynamic_range = str(fmt.get("dynamic_range") or "").lower()
 
     target_h = profile.target_height
 
@@ -104,12 +102,7 @@ def calculate_format_score(fmt: dict[str, Any], profile: QualityProfile) -> floa
     elif fps > 30.0:
         fps_score = 100.0
 
-    # 4. HDR / High Dynamic Range Score
-    hdr_score = 0.0
-    if profile.prefer_hdr and any(k in dynamic_range for k in ("hdr", "hlg", "dolby", "10bit", "10-bit")):
-        hdr_score = 250.0
-
-    # 5. Codec Efficiency Weighting
+    # 4. Codec Efficiency Weighting
     # Subtle efficiency boost applied to bitrate score (never overcomes massive bitrate gaps)
     codec_mult = 1.0
     for prefix, mult in _CODEC_EFFICIENCY_MULTIPLIERS.items():
@@ -118,10 +111,10 @@ def calculate_format_score(fmt: dict[str, Any], profile: QualityProfile) -> floa
             break
     adjusted_bitrate_score = bitrate_score * codec_mult
 
-    # 6. Companion Audio Score
+    # 5. Companion Audio Score
     audio_score = abr * 0.8
 
-    total_score = res_score + adjusted_bitrate_score + fps_score + hdr_score + audio_score
+    total_score = res_score + adjusted_bitrate_score + fps_score + audio_score
     return round(total_score, 3)
 
 
@@ -156,7 +149,7 @@ def build_ytdlp_format_spec(mode: str, quality_label: str, prefer_60fps: bool = 
             break
 
     fps_crit = "fps:60" if prefer_60fps else "fps"
-    sort_criteria = f"res,hdr:12,{fps_crit},vbr,codec,abr"
+    sort_criteria = f"res,{fps_crit},vbr,codec,abr"
 
     if target_h <= 0:
         # Best available
