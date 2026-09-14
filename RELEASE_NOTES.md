@@ -1,3 +1,20 @@
+# VRKA 4.5.2
+
+Build 020
+
+## Highlights
+- **Responsive Settings Layout**: Settings page controls, component cards, and action buttons adapt dynamically to narrow window widths without clipping or overlap.
+- **Vertical Scrolling**: Restored full vertical scrolling on the Settings page so all sections remain accessible on smaller displays.
+- **Startup Component Update Checks**: Automatic notifications when component updates are available, with 24-hour rate limiting and dismissal suppression.
+- **Reliable Batch Updates**: Improved "Update All" behavior with individual component status reporting and elimination of false success indications.
+- **Component Updater Correctness**: Fixed repetitive update prompts for uBlock Origin Lite after installation and hardened post-update validation.
+- **Fresh Portable Detection**: Component updates are detected immediately on fresh Portable installations.
+
+## Security
+- Release packages are cryptographically signed and verified using SHA-256 and OpenPGP signatures.
+
+---
+
 # VRKA 4.5.1
 
 Build 019
