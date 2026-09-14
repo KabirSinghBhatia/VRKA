@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from urllib.parse import urlparse
 import zipfile
 from unittest.mock import patch
 
@@ -98,9 +99,21 @@ class UbolUpdateLifecycleTests(unittest.TestCase):
         target_zip_bytes = _create_mock_ubol_zip(self.target_version)
 
         def _mock_fetch(url, *args, **kwargs):
-            if "api.github.com" in url:
+            parsed = urlparse(url)
+            if parsed.hostname == "api.github.com":
                 return mock_release_bytes
             return target_zip_bytes
+
+        # Regression: URL containing 'api.github.com' in query string must not be treated as GitHub API URL
+        self.assertNotEqual(
+            _mock_fetch("https://evil.example/?next=api.github.com"),
+            mock_release_bytes,
+            "Spoofed URL containing 'api.github.com' in query parameter must not return GitHub API response",
+        )
+        self.assertEqual(
+            _mock_fetch("https://evil.example/?next=api.github.com"),
+            target_zip_bytes,
+        )
 
         with patch("vrka_core.component_updater._safe_fetch_url", side_effect=_mock_fetch):
             # Check update
