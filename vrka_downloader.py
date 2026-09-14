@@ -77,9 +77,9 @@ from vrka_core import (
 )
 
 APP_NAME = "VRKA"
-APP_VERSION = "4.5.1"
-APP_BUILD = "019"
-APP_DISPLAY_VERSION = "4.5.1"
+APP_VERSION = "4.5.2"
+APP_BUILD = "020"
+APP_DISPLAY_VERSION = "4.5.2"
 APP_AUTHOR = "MVRK"
 APP_COPYRIGHT = "Copyright © 2026 MVRK"
 MAX_LOG_LINES = 1000
@@ -2131,8 +2131,11 @@ BROWSER_EXT_DIR = LOCAL_APP_DATA / "VRKA" / "browser-ext"
 
 
 def _bundled_ubol_zip():
-    """Return the bundled uBlock Origin Lite extension archive, or None."""
+    """Return the active or bundled uBlock Origin Lite extension archive, or None."""
     try:
+        managed = BROWSER_EXT_DIR / "ubol.zip"
+        if managed.is_file():
+            return managed
         candidate = resource_path("assets/browser_protection/ubol.zip")
         return candidate if candidate.is_file() else None
     except Exception:

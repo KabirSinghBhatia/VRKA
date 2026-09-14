@@ -1,11 +1,11 @@
-# VRKA 4.5.1 Build 019 Test Results
+# VRKA 4.5.2 Build 020 Test Results
 
 ## Summary
 
 | Result | Count |
 | :--- | ---: |
-| Tests | 163 |
-| Passed | 163 |
+| Tests | 177 |
+| Passed | 177 |
 | Failed | 0 |
 | Errors | 0 |
 | Skipped | 0 |
@@ -17,6 +17,7 @@
 | Suite Module | Tests | Status | Scope |
 | :--- | :---: | :---: | :--- |
 | `tests.test_app_updater` | 14 | PASSED | SemanticVersion parsing, downgrade rejection, redirect allowlisting, hop limits, package SHA-256 verification, concurrency locking, fail-closed staging cleanup, and update state persistence without NameError. |
+| `tests.test_batch_updater` | 3 | PASSED | BatchUpdater concurrency lock, single and multi-component updating, partial failure reporting, and false global success prevention. |
 | `tests.test_build010_core` | 7 | PASSED | Core download state persistence, FIFO queue ordering, and task state transitions. |
 | `tests.test_build010_scheduler` | 8 | PASSED | Single-worker FIFO task scheduling, process isolation, cancellation, and task recovery. |
 | `tests.test_component_updater` | 8 | PASSED | Independent component updates (yt-dlp, uBlock Origin Lite MV3, Puemos MV3), 24h startup gate, batch updates, atomic staging, and rollback. |
@@ -25,7 +26,10 @@
 | `tests.test_header_security` | 7 | PASSED | RFC 7230 header validation, CRLF injection prevention, and sensitive header redaction. |
 | `tests.test_quality_ranking` | 5 | PASSED | Multi-factor quality selection (resolution, frame rate, bitrate, codec efficiency), and no arbitrary HDR bonus. |
 | `tests.test_release_authenticity` | 11 | PASSED | OpenPGP detached signature verification, pinned public key matching, and tamper detection. |
+| `tests.test_release_line_endings` | 6 | PASSED | Strict LF line endings in `SHA256SUMS.txt` and `RELEASE-MANIFEST.json`, exact un-normalized byte signature verification, and CRLF tamper rejection. |
 | `tests.test_settings_and_parity` | 7 | PASSED | Font preference, destination modes, component updates, session clearing, and sanitized diagnostics. |
+| `tests.test_startup_prompt` | 4 | PASSED | Fresh portable state detection, 24-hour rate limiting, modal dismissal suppression, and manual check bypass. |
+| `tests.test_ubol_update_lifecycle` | 1 | PASSED | Complete uBOL update cycle (2026.907.2003 -> 2026.914.1325), loop elimination, manifest inspection, atomic activation, directory pruning, and restart validation. |
 | `tests.test_uplink_state` | 6 | PASSED | UPLINK status transitions (READY, ACTIVE, QUEUED, COMPLETED). |
 | `tests.test_version_consistency` | 6 | PASSED | Version consistency across `pyproject.toml`, `vrka_downloader.py`, `vrka_qml/app.py`, `version_info.txt`, `SettingsPage.qml`, and About display string. |
 | `tests.test_vrka_qml_bridge` | 21 | PASSED | QML bridge event queue draining, activity log ring buffer, and typed signal delivery. |

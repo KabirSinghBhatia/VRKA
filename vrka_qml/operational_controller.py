@@ -1,4 +1,4 @@
-"""Operational integration for VRKA 4.5.1: Browser fallback, MediaObserver, yt-dlp updater,
+"""Operational integration for VRKA 4.5.2: Browser fallback, MediaObserver, yt-dlp updater,
 uBlock Origin Lite updater, Puemos updater, 24-hour startup check, Application self-updater,
 browser session clearing, and sanitized diagnostics.
 """
@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
+from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 
 import vrka_downloader as app
@@ -170,23 +170,31 @@ class OperationalController(QObject):
 
     def _check_startup_updates_async(self) -> None:
         """Non-blocking 24-hour rate-limited component check at application startup."""
+        if not getattr(self._settings, "ytdlpCheckOnStartup", True):
+            return
         if not self._store.can_run_auto_check():
             return
 
         def _worker():
             try:
                 res = self._batch_updater.check_all(bypass_rate_limit=False)
-                if res.get("has_updates") and self._store.can_show_auto_popup():
-                    updates = res.get("updates_list", [])
-                    self._startup_updates = updates
-                    self._startup_dialog_visible = True
-                    self._store.record_auto_popup()
-                    self.startupUpdatesChanged.emit()
-                    self.startupDialogVisibleChanged.emit()
-                    self.startupUpdateDialogRequested.emit(updates)
-                self._refresh_updater_snapshot()
-                self._refresh_observer_snapshot()
-                self._refresh_ubol_snapshot()
+                has_updates = bool(res.get("has_updates"))
+                can_popup = self._store.can_show_auto_popup()
+                updates = res.get("updates_list", []) if has_updates else []
+
+                def _apply_on_gui():
+                    if has_updates and can_popup:
+                        self._startup_updates = updates
+                        self._startup_dialog_visible = True
+                        self._store.record_auto_popup()
+                        self.startupUpdatesChanged.emit()
+                        self.startupDialogVisibleChanged.emit()
+                        self.startupUpdateDialogRequested.emit(updates)
+                    self._refresh_updater_snapshot()
+                    self._refresh_observer_snapshot()
+                    self._refresh_ubol_snapshot()
+
+                QTimer.singleShot(0, _apply_on_gui)
             except Exception:
                 pass
 
@@ -757,23 +765,30 @@ class OperationalController(QObject):
                 res = self._batch_updater.check_all(bypass_rate_limit=True)
                 has_up = res.get("has_updates", False)
                 up_list = res.get("updates_list", [])
-                if res.get("error"):
-                    self._batch_status_text = f"Batch check failed: {res.get('error')}"
-                elif has_up:
-                    self._batch_status_text = f"Updates available for {len(up_list)} component(s)."
-                else:
-                    self._batch_status_text = "All components are up to date."
 
-                self._refresh_updater_snapshot()
-                self._refresh_observer_snapshot()
-                self._refresh_ubol_snapshot()
-                self.batchStatusTextChanged.emit()
+                def _apply_on_gui():
+                    if res.get("error"):
+                        self._batch_status_text = f"Batch check failed: {res.get('error')}"
+                    elif has_up:
+                        self._batch_status_text = f"Updates available for {len(up_list)} component(s)."
+                    else:
+                        self._batch_status_text = "All components are up to date."
+                    self._refresh_updater_snapshot()
+                    self._refresh_observer_snapshot()
+                    self._refresh_ubol_snapshot()
+                    self.batchStatusTextChanged.emit()
+
+                QTimer.singleShot(0, _apply_on_gui)
             except Exception as exc:
-                self._batch_status_text = f"Batch check error: {exc}"
-                self.batchStatusTextChanged.emit()
+                def _err_on_gui(err=str(exc)):
+                    self._batch_status_text = f"Batch check error: {err}"
+                    self.batchStatusTextChanged.emit()
+                QTimer.singleShot(0, _err_on_gui)
             finally:
-                self._batch_busy = False
-                self.batchBusyChanged.emit()
+                def _done_on_gui():
+                    self._batch_busy = False
+                    self.batchBusyChanged.emit()
+                QTimer.singleShot(0, _done_on_gui)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -790,20 +805,30 @@ class OperationalController(QObject):
         def _worker():
             try:
                 res = self._batch_updater.update_all()
-                if res.get("success"):
-                    self._batch_status_text = "All components successfully updated."
-                else:
-                    self._batch_status_text = f"One or more updates failed: {res.get('error', 'Check logs')}"
-                self._refresh_updater_snapshot()
-                self._refresh_observer_snapshot()
-                self._refresh_ubol_snapshot()
-                self.batchStatusTextChanged.emit()
+                summary = res.get("summary", "")
+                success = bool(res.get("success"))
+
+                def _apply_on_gui():
+                    if success:
+                        self._batch_status_text = summary or "All components successfully updated."
+                    else:
+                        self._batch_status_text = summary or f"One or more updates failed: {res.get('error', 'Check logs')}"
+                    self._refresh_updater_snapshot()
+                    self._refresh_observer_snapshot()
+                    self._refresh_ubol_snapshot()
+                    self.batchStatusTextChanged.emit()
+
+                QTimer.singleShot(0, _apply_on_gui)
             except Exception as exc:
-                self._batch_status_text = f"Batch update error: {exc}"
-                self.batchStatusTextChanged.emit()
+                def _err_on_gui(err=str(exc)):
+                    self._batch_status_text = f"Batch update error: {err}"
+                    self.batchStatusTextChanged.emit()
+                QTimer.singleShot(0, _err_on_gui)
             finally:
-                self._batch_busy = False
-                self.batchBusyChanged.emit()
+                def _done_on_gui():
+                    self._batch_busy = False
+                    self.batchBusyChanged.emit()
+                QTimer.singleShot(0, _done_on_gui)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -811,6 +836,7 @@ class OperationalController(QObject):
     def dismissStartupDialog(self) -> None:
         """Dismiss the combined startup update prompt (prevents popup loop for 24h)."""
         self._startup_dialog_visible = False
+        self._store.record_auto_popup()
         self.startupDialogVisibleChanged.emit()
 
     @Slot()
@@ -846,31 +872,33 @@ class OperationalController(QObject):
 
     @Slot()
     def checkAppUpdate(self) -> None:
+        """Check GitHub for new VRKA application releases."""
         if self._app_update_busy:
             return
         self._app_update_busy = True
-        self._app_update_status_text = "Checking GitHub Releases for VRKA updates..."
+        self._app_update_status_text = "Checking GitHub for VRKA application updates..."
         self.appUpdateBusyChanged.emit()
         self.appUpdateStatusTextChanged.emit()
 
         def _worker():
             try:
-                info = check_for_application_update("4.5.1", store=self._store)
+                curr_ver = str(getattr(app, "APP_DISPLAY_VERSION", getattr(app, "APP_VERSION", "4.5.2")))
+                info = check_for_application_update(curr_ver, store=self._store)
                 self._cached_update_info = info
-                if info is None:
-                    self._app_update_status_text = "Could not parse release metadata."
-                    self._app_update_available = False
-                elif info.is_newer:
+                if info.update_available:
                     self._app_update_available = True
                     self._app_update_latest_version = info.latest_version
                     self._app_update_release_notes = info.release_notes
-                    self._app_update_status_text = f"New version available: v{info.latest_version}"
+                    self._app_update_status_text = f"New application update available: v{info.latest_version}"
+                    self.appUpdateAvailableChanged.emit()
+                    self.appUpdateLatestVersionChanged.emit()
+                    self.appUpdateReleaseNotesChanged.emit()
                 else:
                     self._app_update_available = False
                     self._app_update_latest_version = info.latest_version
-                    self._app_update_status_text = f"VRKA 4.5.1 is up to date (latest v{info.latest_version})."
-                self.appUpdateAvailableChanged.emit()
-                self.appUpdateLatestVersionChanged.emit()
+                    self._app_update_status_text = f"VRKA {curr_ver} is up to date (latest v{info.latest_version})."
+                    self.appUpdateAvailableChanged.emit()
+                    self.appUpdateLatestVersionChanged.emit()
                 self.appUpdateReleaseNotesChanged.emit()
                 self.appUpdateStatusTextChanged.emit()
             except Exception as exc:
@@ -924,10 +952,10 @@ class OperationalController(QObject):
     def exportSanitizedDiagnostics(self) -> str:
         """Collect and sanitize full operational diagnostics, copying to system clipboard."""
         lines = [
-            "=== VRKA 4.5.1 OPERATIONAL DIAGNOSTICS ===",
+            f"=== VRKA {app.APP_DISPLAY_VERSION} OPERATIONAL DIAGNOSTICS ===",
             f"OS: {platform.system()} {platform.release()} (x64) - Python {sys.version.split()[0]}",
             f"PySide6: {app.PySide6.__version__ if hasattr(app, 'PySide6') else 'Loaded'}",
-            f"Application Version: 4.5.1 (Build 019)",
+            f"Application Version: {app.APP_DISPLAY_VERSION} (Build {app.APP_BUILD})",
             f"Active Output Folder: {self._host.output_folder}",
             f"Active yt-dlp: {self._updater_current_version}",
             f"uBlock Origin Lite: {self._ubol_current_version}",

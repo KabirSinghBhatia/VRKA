@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.2] - 2026-09-14 (Build 020)
+
+### Fixed
+- **Settings UI Small-Window Layout & Responsiveness**:
+  - Eliminated horizontal layout clipping and overflow at window widths below 640px.
+  - Standardized consistent 9-part component cards across all subsystems (yt-dlp, uBlock Origin Lite, and Puemos Media Observer).
+  - Replaced rigid button rows with responsive `Flow` layouts, preventing button overlap, truncation, or boundary clipping on narrow viewports.
+  - Added dedicated, wrapping status text areas to prevent long updater messages from displacing UI controls.
+  - Made uBOL and Puemos component cards stack vertically into a single column on viewports under 680px.
+  - Corrected vertical scrolling by establishing an explicit `contentHeight` binding (`mainCol.implicitHeight + 40`) on `ScrollView`.
+- **uBlock Origin Lite Update Loop Elimination**:
+  - Resolved regression where checking for updates immediately after an installation incorrectly reported "Update available".
+  - Made installed version inspection strictly read-only, scanning all candidate extension directories and picking the highest validated version via numeric version tuple sorting.
+  - Implemented atomic directory replacement and automatic pruning of superseded older extension directories only after post-install validation succeeds.
+  - Ensured fresh app restarts correctly read the active updated extension manifest.
+- **Batch Update Reliability & False Success Elimination**:
+  - Replaced partial result checks with strict per-component tracking in `BatchUpdater.update_all()`.
+  - Prohibited global success when any component fails; now accurately reports `updated_count`, `failed_count`, and granular error descriptions.
+  - Added post-update consistency re-checks to verify all updated components show zero remaining updates.
+  - Enforced thread-safe concurrency locks on batch update operations.
+- **Startup Component Update Prompt & Rate Limiting**:
+  - Integrated 24-hour rate-limiting gate for startup update checks and modal prompts (`CombinedUpdateDialog`).
+  - Corrected dialog suppression logic: clicking "Later" suppresses the startup dialog for 24 hours without preventing manual checks from Settings.
+  - Added responsive size bounds on the startup update modal to prevent clipping on small displays.
+- **Fresh Portable EXE Component Update Detection**:
+  - Enabled immediate component update detection on fresh portable installations without prior state history.
+- **Diagnostics & Version Consistency**:
+  - Made sanitized operational diagnostics dynamically bind to authoritative application identity constants (`APP_DISPLAY_VERSION` and `APP_BUILD`).
+- **Release Packaging Line Ending Invariants**:
+  - Enforced byte-exact LF-only line endings on `SHA256SUMS.txt` and `RELEASE-MANIFEST.json` and verified detached OpenPGP signatures without normalization.
+
+---
+
 ## [4.5.1] - 2026-09-14 (Build 019)
 
 ### Added

@@ -273,18 +273,28 @@ class YtdlpUpdater:
                         os.replace(previous, active)
                     raise
 
+                # 6. Post-activation execution readback from the active binary
+                valid_active, active_ver, active_reason = app.validate_ytdlp_binary(active, expected_version=expected_ver)
+                if not valid_active:
+                    # Fail closed: restore previous working binary
+                    if previous.exists():
+                        if active.exists():
+                            active.unlink()
+                        os.replace(previous, active)
+                    raise ValueError(f"Active yt-dlp binary failed post-activation readback: {active_reason}")
+
                 self._store.set_component_state(
                     "yt-dlp",
                     ComponentUpdateState.COMPLETED,
-                    installed_version=tested_ver,
-                    available_version=tested_ver,
+                    installed_version=active_ver,
+                    available_version=active_ver,
                     last_update=time.time(),
                     error="",
                 )
                 return {
                     "updated": True,
                     "component": "yt-dlp",
-                    "version": tested_ver,
+                    "version": active_ver,
                     "sha256": actual_sha,
                     "path": str(active),
                 }
@@ -335,26 +345,52 @@ class UBlockUpdater:
     """Independent component updater for uBlock Origin Lite (Chromium MV3 for WebView2)."""
 
     UPSTREAM_API = "https://api.github.com/repos/uBlockOrigin/uBOL-home/releases/latest"
+    EXTENSION_ID = "uBlock0@raymondhill.net"
 
     def __init__(self, store: UpdateStateStore | None = None):
         self._store = store or UpdateStateStore()
         self._lock = threading.RLock()
 
     def get_installed_version(self) -> str:
-        """Inspect installed uBOL extension manifest from runtime or bundled archive."""
+        """Inspect installed uBOL extension manifest from runtime or bundled archive.
+
+        Read-only: does not modify or prune directories during version inspection.
+        Scans all candidate directories and returns the highest valid version.
+        """
         import vrka_downloader as app
-        # Check active extracted runtime directory
+        candidate_versions: list[tuple[tuple[int, ...], str, Path]] = []
         try:
             if app.BROWSER_EXT_DIR.is_dir():
                 for p in app.BROWSER_EXT_DIR.glob(f"{app.UBOL_EXTENSION_DIRNAME}-*"):
+                    if not p.is_dir():
+                        continue
                     mf = p / "manifest.json"
                     if mf.is_file():
-                        data = json.loads(mf.read_text(encoding="utf-8"))
-                        ver = data.get("version")
-                        if ver:
-                            return str(ver)
+                        try:
+                            data = json.loads(mf.read_text(encoding="utf-8"))
+                            ext_id = (
+                                data.get("browser_specific_settings", {}).get("gecko", {}).get("id")
+                                or data.get("applications", {}).get("gecko", {}).get("id")
+                            )
+                            if ext_id and ext_id != self.EXTENSION_ID:
+                                continue
+                            author = str(data.get("author", ""))
+                            short_name = str(data.get("short_name", ""))
+                            name = str(data.get("name", ""))
+                            if not ext_id and "Raymond Hill" not in author and "uBO Lite" not in short_name and "uBlock" not in name:
+                                continue
+                            ver = str(data.get("version") or "").strip()
+                            if ver:
+                                candidate_versions.append((_version_tuple(ver), ver, p))
+                        except Exception:
+                            pass
         except Exception:
             pass
+
+        if candidate_versions:
+            # Sort descending by numeric version tuple to pick highest version
+            candidate_versions.sort(key=lambda x: x[0], reverse=True)
+            return candidate_versions[0][1]
 
         # Check bundled archive
         try:
@@ -437,7 +473,7 @@ class UBlockUpdater:
         check_info: dict[str, Any] | None = None,
         progress_cb: Callable[[int, int], None] | None = None,
     ) -> dict[str, Any]:
-        """Download official uBOLite zip, verify MV3 manifest, stage, and atomically activate."""
+        """Download official uBOLite zip, verify MV3 manifest, stage, atomically activate, and validate."""
         with self._lock:
             self._store.set_component_state("ubol", ComponentUpdateState.UPDATING)
             try:
@@ -450,10 +486,10 @@ class UBlockUpdater:
                 if not asset_url:
                     raise ValueError("No valid uBlock Origin Lite Chromium asset URL found in release")
 
-                # Download zip to staging
+                # 1. Download zip to staging
                 raw_zip = _safe_fetch_url(asset_url, timeout=60.0, max_bytes=30_000_000)
 
-                # Validate ZIP integrity and manifest
+                # 2. Validate ZIP integrity and manifest
                 with zipfile.ZipFile(io.BytesIO(raw_zip)) as zf:
                     manifest_entry = next((n for n in zf.namelist() if n.endswith("manifest.json")), None)
                     if not manifest_entry:
@@ -465,12 +501,24 @@ class UBlockUpdater:
                     ver = str(manifest.get("version") or "")
                     if not ver:
                         raise ValueError("uBOL manifest has no version string")
+                    # Validate extension identity
+                    ext_id = (
+                        manifest.get("browser_specific_settings", {}).get("gecko", {}).get("id")
+                        or manifest.get("applications", {}).get("gecko", {}).get("id")
+                    )
+                    if ext_id and ext_id != self.EXTENSION_ID:
+                        raise ValueError(f"Invalid uBOL extension ID: {ext_id}, expected {self.EXTENSION_ID}")
+                    author = str(manifest.get("author", ""))
+                    short_name = str(manifest.get("short_name", ""))
+                    name = str(manifest.get("name", ""))
+                    if not ext_id and "Raymond Hill" not in author and "uBO Lite" not in short_name and "uBlock" not in name:
+                        raise ValueError("Downloaded archive does not match uBlock Origin Lite identity")
 
-                # Atomic staging in runtime directory
+                # 3. Atomic staging in runtime directory
                 app.BROWSER_EXT_DIR.mkdir(parents=True, exist_ok=True)
                 digest = hashlib.sha1(raw_zip).hexdigest()[:10]
-                dest_dir = app.BROWSER_EXT_DIR / f"{app.UBOL_EXTENSION_DIRNAME}-{digest}"
-                staging_dir = app.BROWSER_EXT_DIR / f"{app.UBOL_EXTENSION_DIRNAME}-{digest}.staging"
+                dest_dir = app.BROWSER_EXT_DIR / f"{app.UBOL_EXTENSION_DIRNAME}-{ver}-{digest}"
+                staging_dir = app.BROWSER_EXT_DIR / f"{app.UBOL_EXTENSION_DIRNAME}-{ver}-{digest}.staging"
 
                 if staging_dir.exists():
                     shutil.rmtree(staging_dir, ignore_errors=True)
@@ -491,18 +539,30 @@ class UBlockUpdater:
                     shutil.rmtree(staging_dir, ignore_errors=True)
                     raise ValueError("Failed to extract manifest.json to staging destination")
 
-                # Atomic replacement of runtime unpacked folder
+                # 4. Atomic replacement of destination folder
                 if dest_dir.exists():
                     shutil.rmtree(dest_dir, ignore_errors=True)
                 os.replace(staging_dir, dest_dir)
 
-                # Save managed archive in runtime directory
+                # 5. Save managed archive in runtime directory for fallback loaders
                 managed_archive = app.BROWSER_EXT_DIR / "ubol.zip"
                 managed_archive.write_bytes(raw_zip)
 
-                # Runtime verification: read back installed manifest
-                installed_ver = json.loads((dest_dir / "manifest.json").read_text(encoding="utf-8")).get("version", ver)
+                # 6. Post-install validation: read back installed manifest
+                mf_installed = dest_dir / "manifest.json"
+                if not mf_installed.is_file():
+                    raise ValueError(f"Installed manifest missing at {mf_installed}")
+                installed_data = json.loads(mf_installed.read_text(encoding="utf-8"))
+                installed_ver = str(installed_data.get("version") or ver)
+                if _version_tuple(installed_ver) != _version_tuple(ver):
+                    raise ValueError(f"Installed version mismatch: expected {ver}, got {installed_ver}")
 
+                # Verify get_installed_version reads back the target version
+                verified_active = self.get_installed_version()
+                if _version_tuple(verified_active) < _version_tuple(ver):
+                    raise ValueError(f"Active version readback failed: expected at least {ver}, got {verified_active}")
+
+                # 7. Update persistent state
                 self._store.set_component_state(
                     "ubol",
                     ComponentUpdateState.COMPLETED,
@@ -511,6 +571,18 @@ class UBlockUpdater:
                     last_update=time.time(),
                     error="",
                 )
+
+                # 8. Clear stale state: verify fresh update check reports up to date
+                self.check_update()
+
+                # 9. Prune superseded uBOL directories (preserve active dest_dir)
+                try:
+                    for old in app.BROWSER_EXT_DIR.glob(f"{app.UBOL_EXTENSION_DIRNAME}-*"):
+                        if old.is_dir() and old != dest_dir and not old.name.endswith(".staging"):
+                            shutil.rmtree(old, ignore_errors=True)
+                except Exception:
+                    pass
+
                 return {
                     "updated": True,
                     "component": "ubol",
@@ -531,27 +603,53 @@ class PuemosUpdater:
     """Independent component updater for Puemos HLS Downloader (Chromium MV3 for WebView2)."""
 
     UPSTREAM_API = "https://api.github.com/repos/puemos/hls-downloader/releases/latest"
+    EXTENSION_ID = "{e3ec0551-9bfa-4233-b9dd-6b36f6a80962}"
 
     def __init__(self, store: UpdateStateStore | None = None):
         self._store = store or UpdateStateStore()
         self._lock = threading.RLock()
 
     def get_installed_version(self) -> str:
-        """Inspect installed Puemos extension manifest from runtime or bundled archive."""
+        """Inspect installed Puemos extension manifest from runtime or bundled archive.
+
+        Read-only: does not modify or prune directories during version inspection.
+        Scans all candidate directories and returns the highest valid version.
+        """
         from .media_observer import OBSERVER_DIRNAME, OBSERVER_VERSION
         import vrka_downloader as app
-        # Check active runtime directory
+        candidate_versions: list[tuple[tuple[int, ...], str, Path]] = []
         try:
             if app.BROWSER_EXT_DIR.is_dir():
                 for p in app.BROWSER_EXT_DIR.glob(f"{OBSERVER_DIRNAME}-*"):
+                    if not p.is_dir():
+                        continue
                     mf = p / "manifest.json"
                     if mf.is_file():
-                        data = json.loads(mf.read_text(encoding="utf-8"))
-                        ver = data.get("version")
-                        if ver:
-                            return str(ver)
+                        try:
+                            data = json.loads(mf.read_text(encoding="utf-8"))
+                            ext_id = (
+                                data.get("browser_specific_settings", {}).get("gecko", {}).get("id")
+                                or data.get("applications", {}).get("gecko", {}).get("id")
+                            )
+                            if ext_id and ext_id != self.EXTENSION_ID:
+                                continue
+                            name = str(data.get("name", ""))
+                            author = str(data.get("author", ""))
+                            if not ext_id and "hls" not in name.lower() and "puemos" not in author.lower():
+                                continue
+                            ver = str(data.get("version") or "").strip()
+                            if ver:
+                                candidate_versions.append((_version_tuple(ver), ver, p))
+                        except Exception:
+                            pass
         except Exception:
             pass
+
+        if candidate_versions:
+            # Sort descending by numeric version tuple to pick highest version
+            candidate_versions.sort(key=lambda x: x[0], reverse=True)
+            return candidate_versions[0][1]
+
         return OBSERVER_VERSION
 
     def check_update(self) -> dict[str, Any]:
@@ -613,7 +711,7 @@ class PuemosUpdater:
         check_info: dict[str, Any] | None = None,
         progress_cb: Callable[[int, int], None] | None = None,
     ) -> dict[str, Any]:
-        """Download official Puemos MV3 zip, verify manifest, stage, and atomically activate."""
+        """Download official Puemos MV3 zip, verify manifest, stage, atomically activate, and validate."""
         with self._lock:
             self._store.set_component_state("puemos", ComponentUpdateState.UPDATING)
             try:
@@ -628,10 +726,10 @@ class PuemosUpdater:
                 if not asset_url:
                     raise ValueError("No valid Puemos Chromium MV3 asset URL found in release")
 
-                # Download zip to staging
+                # 1. Download zip to staging
                 raw_zip = _safe_fetch_url(asset_url, timeout=60.0, max_bytes=30_000_000)
 
-                # Validate ZIP integrity and manifest
+                # 2. Validate ZIP integrity and manifest
                 with zipfile.ZipFile(io.BytesIO(raw_zip)) as zf:
                     manifest_entry = next((n for n in zf.namelist() if n.endswith("manifest.json")), None)
                     if not manifest_entry:
@@ -642,8 +740,15 @@ class PuemosUpdater:
                     ver = str(manifest.get("version") or "")
                     if not ver:
                         raise ValueError("Puemos manifest has no version string")
+                    # Validate extension identity
+                    ext_id = (
+                        manifest.get("browser_specific_settings", {}).get("gecko", {}).get("id")
+                        or manifest.get("applications", {}).get("gecko", {}).get("id")
+                    )
+                    if ext_id and ext_id != self.EXTENSION_ID:
+                        raise ValueError(f"Invalid Puemos extension ID: {ext_id}, expected {self.EXTENSION_ID}")
 
-                # Staging unpacked directory
+                # 3. Staging unpacked directory
                 app.BROWSER_EXT_DIR.mkdir(parents=True, exist_ok=True)
                 digest = hashlib.sha1(raw_zip).hexdigest()[:10]
                 dest_dir = app.BROWSER_EXT_DIR / f"{OBSERVER_DIRNAME}-{ver}-{digest}"
@@ -666,12 +771,12 @@ class PuemosUpdater:
                     shutil.rmtree(staging_dir, ignore_errors=True)
                     raise ValueError("Failed to extract Puemos manifest.json to staging destination")
 
-                # Atomic replacement
+                # 4. Atomic replacement
                 if dest_dir.exists():
                     shutil.rmtree(dest_dir, ignore_errors=True)
                 os.replace(staging_dir, dest_dir)
 
-                # Update bundled archive if path is writable
+                # 5. Update bundled archive if path is writable
                 target_zip = artifact_zip_path()
                 try:
                     if target_zip.parent.is_dir():
@@ -683,8 +788,20 @@ class PuemosUpdater:
                 managed_archive = app.BROWSER_EXT_DIR / "puemos-latest.zip"
                 managed_archive.write_bytes(raw_zip)
 
-                installed_ver = json.loads((dest_dir / "manifest.json").read_text(encoding="utf-8")).get("version", ver)
+                # 6. Post-install validation: read back installed manifest
+                mf_installed = dest_dir / "manifest.json"
+                if not mf_installed.is_file():
+                    raise ValueError(f"Installed manifest missing at {mf_installed}")
+                installed_data = json.loads(mf_installed.read_text(encoding="utf-8"))
+                installed_ver = str(installed_data.get("version") or ver)
+                if _version_tuple(installed_ver) != _version_tuple(ver):
+                    raise ValueError(f"Installed version mismatch: expected {ver}, got {installed_ver}")
 
+                verified_active = self.get_installed_version()
+                if _version_tuple(verified_active) < _version_tuple(ver):
+                    raise ValueError(f"Active version readback failed: expected at least {ver}, got {verified_active}")
+
+                # 7. Update persistent state
                 self._store.set_component_state(
                     "puemos",
                     ComponentUpdateState.COMPLETED,
@@ -693,6 +810,18 @@ class PuemosUpdater:
                     last_update=time.time(),
                     error="",
                 )
+
+                # 8. Clear stale state: verify fresh update check reports up to date
+                self.check_update()
+
+                # 9. Prune superseded observer directories (preserve active dest_dir)
+                try:
+                    for old in app.BROWSER_EXT_DIR.glob(f"{OBSERVER_DIRNAME}-*"):
+                        if old.is_dir() and old != dest_dir and not old.name.endswith(".staging"):
+                            shutil.rmtree(old, ignore_errors=True)
+                except Exception:
+                    pass
+
                 return {
                     "updated": True,
                     "component": "puemos",
@@ -746,7 +875,6 @@ class BatchUpdater:
             self._store.set_batch_state(BatchUpdateState.CHECKING)
 
             results: dict[str, Any] = {}
-            # Run checks sequentially or in parallel safely
             results["yt-dlp"] = self.ytdlp.check_update()
             results["ubol"] = self.ubol.check_update()
             results["puemos"] = self.puemos.check_update()
@@ -787,7 +915,7 @@ class BatchUpdater:
     def update_all(self, components_to_update: list[str] | None = None) -> dict[str, Any]:
         """Update specified components or all components that have updates available."""
         if not self._batch_lock.acquire(blocking=False):
-            return {"busy": True, "error": "Batch update operation is already in progress"}
+            return {"busy": True, "error": "Batch update operation is already in progress", "success": False}
 
         try:
             self._is_busy = True
@@ -796,23 +924,128 @@ class BatchUpdater:
             targets = components_to_update or ["yt-dlp", "ubol", "puemos"]
             update_results: dict[str, Any] = {}
 
-            if "yt-dlp" in targets:
-                update_results["yt-dlp"] = self.ytdlp.install_update()
-            if "ubol" in targets:
-                update_results["ubol"] = self.ubol.install_update()
-            if "puemos" in targets:
-                update_results["puemos"] = self.puemos.install_update()
+            for comp in targets:
+                if comp == "yt-dlp":
+                    initial_ver, _ = self.ytdlp.get_installed_version()
+                    res = self.ytdlp.install_update()
+                    final_ver, _ = self.ytdlp.get_installed_version()
+                    ok = bool(res.get("updated")) and not bool(res.get("error"))
+                    target_v = res.get("version") or res.get("installed_version") or initial_ver
+                    readback_ok = ok and (final_ver == target_v)
+                    update_results["yt-dlp"] = {
+                        "component": "yt-dlp",
+                        "initial_version": initial_ver,
+                        "target_version": target_v,
+                        "check_result": True,
+                        "download_result": ok,
+                        "verification_result": ok,
+                        "installation_result": ok,
+                        "activation_result": ok,
+                        "readback_result": readback_ok,
+                        "final_version": final_ver,
+                        "final_update_state": "updated" if ok and readback_ok else "failed",
+                        "error": res.get("error", ""),
+                        "rollback_result": None,
+                        "updated": ok and readback_ok,
+                    }
+                elif comp == "ubol":
+                    initial_ver = self.ubol.get_installed_version()
+                    res = self.ubol.install_update()
+                    final_ver = self.ubol.get_installed_version()
+                    ok = bool(res.get("updated")) and not bool(res.get("error"))
+                    target_v = res.get("installed_version", initial_ver)
+                    readback_ok = ok and (final_ver == target_v)
+                    update_results["ubol"] = {
+                        "component": "ubol",
+                        "initial_version": initial_ver,
+                        "target_version": target_v,
+                        "check_result": True,
+                        "download_result": ok,
+                        "verification_result": ok,
+                        "installation_result": ok,
+                        "activation_result": ok,
+                        "readback_result": readback_ok,
+                        "final_version": final_ver,
+                        "final_update_state": "updated" if ok and readback_ok else "failed",
+                        "error": res.get("error", ""),
+                        "rollback_result": None,
+                        "updated": ok and readback_ok,
+                    }
+                elif comp == "puemos":
+                    initial_ver = self.puemos.get_installed_version()
+                    res = self.puemos.install_update()
+                    final_ver = self.puemos.get_installed_version()
+                    ok = bool(res.get("updated")) and not bool(res.get("error"))
+                    target_v = res.get("installed_version", initial_ver)
+                    readback_ok = ok and (final_ver == target_v)
+                    update_results["puemos"] = {
+                        "component": "puemos",
+                        "initial_version": initial_ver,
+                        "target_version": target_v,
+                        "check_result": True,
+                        "download_result": ok,
+                        "verification_result": ok,
+                        "installation_result": ok,
+                        "activation_result": ok,
+                        "readback_result": readback_ok,
+                        "final_version": final_ver,
+                        "final_update_state": "updated" if ok and readback_ok else "failed",
+                        "error": res.get("error", ""),
+                        "rollback_result": None,
+                        "updated": ok and readback_ok,
+                    }
 
-            all_ok = all(r.get("updated", False) for r in update_results.values() if not r.get("error"))
+            updated_count = sum(1 for r in update_results.values() if r.get("updated") and not r.get("error"))
+            failed_count = sum(1 for r in update_results.values() if (not r.get("updated")) or r.get("error"))
+
+            # Global success requires every target component to succeed with zero errors and valid readback
+            all_ok = (
+                len(update_results) == len(targets)
+                and failed_count == 0
+                and all(
+                    r.get("updated") is True
+                    and r.get("readback_result") is True
+                    and not r.get("error")
+                    for r in update_results.values()
+                )
+            )
+
+            # Re-check components to confirm no remaining updates
+            for comp, r in update_results.items():
+                if r.get("updated"):
+                    if comp == "yt-dlp":
+                        chk = self.ytdlp.check_update()
+                    elif comp == "ubol":
+                        chk = self.ubol.check_update()
+                    elif comp == "puemos":
+                        chk = self.puemos.check_update()
+                    if chk.get("update_available"):
+                        all_ok = False
+                        r["final_update_state"] = "inconsistent"
+                        r["error"] = f"Component still reports update available: {chk.get('available_version')}"
+
+            summary_text = (
+                f"{updated_count} component{'s' if updated_count != 1 else ''} updated. "
+                f"{failed_count} component{'s' if failed_count != 1 else ''} failed."
+            )
+
             self._store.set_batch_state(
                 BatchUpdateState.COMPLETED if all_ok else BatchUpdateState.FAILED,
-                error="" if all_ok else "One or more component updates failed",
+                error="" if all_ok else ("One or more component updates failed" if failed_count > 0 else "Inconsistent update state detected"),
             )
-            return {"busy": False, "results": update_results, "success": all_ok}
+            return {
+                "busy": False,
+                "results": update_results,
+                "success": all_ok,
+                "updated_count": updated_count,
+                "failed_count": failed_count,
+                "errors": {comp: r.get("error", "") for comp, r in update_results.items() if r.get("error")},
+                "summary": summary_text,
+            }
         except Exception as exc:
             err_msg = str(exc)
             self._store.set_batch_state(BatchUpdateState.FAILED, error=err_msg)
-            return {"busy": False, "error": err_msg, "success": False}
+            return {"busy": False, "error": err_msg, "success": False, "results": {}, "updated_count": 0, "failed_count": len(components_to_update or [])}
         finally:
             self._is_busy = False
             self._batch_lock.release()

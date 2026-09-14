@@ -11,6 +11,7 @@ ScrollView {
     objectName: "settingsScroll"
     clip: true
     contentWidth: availableWidth
+    contentHeight: mainCol.implicitHeight + 40
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
     property string feedbackMessage: ""
@@ -41,6 +42,7 @@ ScrollView {
     }
 
     ColumnLayout {
+        id: mainCol
         width: Math.max(100, settingsScroll.availableWidth - 16)
         spacing: Theme.panelGap
 
@@ -230,31 +232,38 @@ ScrollView {
                 Layout.fillWidth: true
                 spacing: 14
 
-                // Authoritative Batch Operation Header Row
-                RowLayout {
+                // Authoritative Batch Operation Header
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 8
 
-                    VPrimaryButton {
-                        text: (typeof Operational !== "undefined" && Operational && Operational.batchBusy) ? "Checking All..." : "Check All Updates"
-                        enabled: !(typeof Operational !== "undefined" && Operational && Operational.batchBusy)
-                        Layout.preferredHeight: 34
-                        Layout.preferredWidth: 160
-                        onClicked: {
-                            if (typeof Operational !== "undefined" && Operational) {
-                                Operational.checkAllUpdates()
+                    Flow {
+                        Layout.fillWidth: true
+                        width: parent ? parent.width : 0
+                        spacing: 10
+
+                        VPrimaryButton {
+                            text: (typeof Operational !== "undefined" && Operational && Operational.batchBusy) ? "Checking All..." : "Check All Updates"
+                            enabled: !(typeof Operational !== "undefined" && Operational && Operational.batchBusy)
+                            Layout.preferredHeight: 34
+                            Layout.preferredWidth: 160
+                            onClicked: {
+                                if (typeof Operational !== "undefined" && Operational) {
+                                    Operational.checkAllUpdates()
+                                }
                             }
                         }
-                    }
 
-                    VSecondaryButton {
-                        text: "Update All Available"
-                        visible: (typeof Operational !== "undefined" && Operational && (Operational.updaterUpdateAvailable || Operational.ubolUpdateAvailable || Operational.puemosUpdateAvailable))
-                        enabled: !(typeof Operational !== "undefined" && Operational && Operational.batchBusy)
-                        Layout.preferredHeight: 34
-                        onClicked: {
-                            if (typeof Operational !== "undefined" && Operational) {
-                                Operational.updateAllAvailable()
+                        VSecondaryButton {
+                            text: "Update All Available"
+                            visible: (typeof Operational !== "undefined" && Operational && (Operational.updaterUpdateAvailable || Operational.ubolUpdateAvailable || Operational.puemosUpdateAvailable))
+                            enabled: !(typeof Operational !== "undefined" && Operational && Operational.batchBusy)
+                            Layout.preferredHeight: 34
+                            Layout.preferredWidth: 160
+                            onClicked: {
+                                if (typeof Operational !== "undefined" && Operational) {
+                                    Operational.updateAllAvailable()
+                                }
                             }
                         }
                     }
@@ -265,7 +274,7 @@ ScrollView {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.microSize
                         color: Theme.textDim
-                        elide: Text.ElideRight
+                        wrapMode: Text.WordWrap
                     }
                 }
 
@@ -318,6 +327,15 @@ ScrollView {
                             }
                         }
 
+                        Label {
+                            text: "Main media extraction and stream downloading backend."
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.microSize
+                            color: Theme.textDim
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
+                        }
+
                         // Component Metadata Grid
                         GridLayout {
                             Layout.fillWidth: true
@@ -328,17 +346,17 @@ ScrollView {
                             ColumnLayout {
                                 spacing: 1
                                 Label { text: "INSTALLED"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
-                                Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.updaterCurrentVersion : "2026.03.04"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight }
+                                Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.updaterCurrentVersion : "2026.03.04"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight; Layout.fillWidth: true }
                             }
                             ColumnLayout {
                                 spacing: 1
                                 Label { text: "LATEST"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
-                                Label { text: (typeof Operational !== "undefined" && Operational && Operational.updaterAvailableVersion !== "") ? Operational.updaterAvailableVersion : "Current"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight }
+                                Label { text: (typeof Operational !== "undefined" && Operational && Operational.updaterAvailableVersion !== "") ? Operational.updaterAvailableVersion : "Current"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight; Layout.fillWidth: true }
                             }
                             ColumnLayout {
                                 spacing: 1
                                 Label { text: "STATUS"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
-                                Label { text: (typeof Operational !== "undefined" && Operational && Operational.updaterUpdateAvailable) ? "Update available" : "Up to date"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: (typeof Operational !== "undefined" && Operational && Operational.updaterUpdateAvailable) ? Theme.accentHover : Theme.success }
+                                Label { text: (typeof Operational !== "undefined" && Operational && Operational.updaterUpdateAvailable) ? "Update available" : ((typeof Operational !== "undefined" && Operational && Operational.updaterStatusText !== "") ? Operational.updaterStatusText : "Up to date"); font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: (typeof Operational !== "undefined" && Operational && Operational.updaterUpdateAvailable) ? Theme.accentHover : Theme.success; elide: Text.ElideRight; Layout.fillWidth: true }
                             }
                             ColumnLayout {
                                 spacing: 1
@@ -347,9 +365,10 @@ ScrollView {
                             }
                         }
 
-                        // Actions Row
-                        RowLayout {
+                        // Actions Flow
+                        Flow {
                             Layout.fillWidth: true
+                            width: parent ? parent.width : 0
                             spacing: 8
 
                             VPrimaryButton {
@@ -376,12 +395,15 @@ ScrollView {
                         }
 
                         // Channel & Policy Options
-                        RowLayout {
+                        GridLayout {
                             Layout.fillWidth: true
-                            spacing: 12
+                            columns: settingsScroll.availableWidth > 640 ? 2 : 1
+                            columnSpacing: 16
+                            rowSpacing: 8
 
                             ColumnLayout {
-                                Layout.preferredWidth: 160
+                                Layout.preferredWidth: settingsScroll.availableWidth > 640 ? 160 : -1
+                                Layout.fillWidth: settingsScroll.availableWidth <= 640
                                 spacing: 2
                                 Label { text: "UPDATE CHANNEL"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
                                 VComboBox {
@@ -421,7 +443,7 @@ ScrollView {
                     // uBlock Origin Lite Card
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: ublockCol.implicitHeight + 20
+                        implicitHeight: ublockCol.implicitHeight + 24
                         radius: Theme.controlRadius
                         color: Theme.cardAlt
                         border.width: 1
@@ -431,12 +453,22 @@ ScrollView {
                             id: ublockCol
                             anchors.fill: parent
                             anchors.margins: 12
-                            spacing: 8
+                            spacing: 10
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label { text: "uBlock Origin Lite (uBOL)"; font.family: Theme.fontFamily; font.pixelSize: Theme.bodySize; font.bold: true; color: Theme.text }
+                                spacing: 8
+
+                                Label {
+                                    text: "uBlock Origin Lite (uBOL)"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.bodySize
+                                    font.bold: true
+                                    color: Theme.text
+                                }
+
                                 Item { Layout.fillWidth: true }
+
                                 Rectangle {
                                     radius: 4
                                     color: (typeof Operational !== "undefined" && Operational && Operational.ubolOperationalStatus === "Active") ? Theme.successSoft : Theme.errorSoft
@@ -466,28 +498,57 @@ ScrollView {
                                 Layout.fillWidth: true
                             }
 
-                            RowLayout {
+                            // Component Metadata Grid
+                            GridLayout {
                                 Layout.fillWidth: true
+                                columns: settingsScroll.availableWidth > 800 ? 4 : 2
+                                columnSpacing: 12
+                                rowSpacing: 6
+
                                 ColumnLayout {
                                     spacing: 1
                                     Label { text: "INSTALLED"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
-                                    Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.ubolCurrentVersion : "1.0.4 (MV3)"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text }
+                                    Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.ubolCurrentVersion : "1.0.4 (MV3)"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight; Layout.fillWidth: true }
                                 }
-                                Item { Layout.fillWidth: true }
+                                ColumnLayout {
+                                    spacing: 1
+                                    Label { text: "LATEST"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
+                                    Label { text: (typeof Operational !== "undefined" && Operational && Operational.ubolAvailableVersion !== "") ? Operational.ubolAvailableVersion : "Current"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight; Layout.fillWidth: true }
+                                }
                                 ColumnLayout {
                                     spacing: 1
                                     Label { text: "STATUS"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
-                                    Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.ubolStatusText : "Up to date"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.success }
+                                    Label {
+                                        text: (typeof Operational !== "undefined" && Operational && Operational.ubolUpdateAvailable) ? "Update available" : ((typeof Operational !== "undefined" && Operational && Operational.ubolStatusText !== "") ? Operational.ubolStatusText : "Up to date")
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.smallSize
+                                        color: (typeof Operational !== "undefined" && Operational && Operational.ubolUpdateAvailable) ? Theme.accentHover : Theme.success
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
                                 }
-                                Item { Layout.fillWidth: true }
+                                ColumnLayout {
+                                    spacing: 1
+                                    Label { text: "SECURITY"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
+                                    Label { text: "Verified MV3"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.textMuted }
+                                }
+                            }
+
+                            // Actions Flow
+                            Flow {
+                                Layout.fillWidth: true
+                                width: parent ? parent.width : 0
+                                spacing: 8
+
                                 VSecondaryButton {
                                     text: (typeof Operational !== "undefined" && Operational && Operational.ubolBusy) ? "Working..." : "Check Update"
                                     enabled: !(typeof Operational !== "undefined" && Operational && Operational.ubolBusy)
                                     Layout.preferredHeight: 30
                                     onClicked: Operational.checkUbolUpdate()
                                 }
+
                                 VPrimaryButton {
-                                    text: "Install"
+                                    text: "Install Update"
                                     visible: (typeof Operational !== "undefined" && Operational && Operational.ubolUpdateAvailable)
                                     enabled: !(typeof Operational !== "undefined" && Operational && Operational.ubolBusy)
                                     Layout.preferredHeight: 30
@@ -500,7 +561,7 @@ ScrollView {
                     // Puemos Media Observer Card
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: puemosCol.implicitHeight + 20
+                        implicitHeight: puemosCol.implicitHeight + 24
                         radius: Theme.controlRadius
                         color: Theme.cardAlt
                         border.width: 1
@@ -510,12 +571,22 @@ ScrollView {
                             id: puemosCol
                             anchors.fill: parent
                             anchors.margins: 12
-                            spacing: 8
+                            spacing: 10
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Label { text: "Puemos Media Observer"; font.family: Theme.fontFamily; font.pixelSize: Theme.bodySize; font.bold: true; color: Theme.text }
+                                spacing: 8
+
+                                Label {
+                                    text: "Puemos Media Observer"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.bodySize
+                                    font.bold: true
+                                    color: Theme.text
+                                }
+
                                 Item { Layout.fillWidth: true }
+
                                 Rectangle {
                                     radius: 4
                                     color: (typeof Operational !== "undefined" && Operational && Operational.puemosOperationalStatus === "Active") ? Theme.successSoft : Theme.errorSoft
@@ -545,28 +616,57 @@ ScrollView {
                                 Layout.fillWidth: true
                             }
 
-                            RowLayout {
+                            // Component Metadata Grid
+                            GridLayout {
                                 Layout.fillWidth: true
+                                columns: settingsScroll.availableWidth > 800 ? 4 : 2
+                                columnSpacing: 12
+                                rowSpacing: 6
+
                                 ColumnLayout {
                                     spacing: 1
                                     Label { text: "INSTALLED"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
-                                    Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.puemosCurrentVersion : "5.5.0 (MV3)"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text }
+                                    Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.puemosCurrentVersion : "5.5.0 (MV3)"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight; Layout.fillWidth: true }
                                 }
-                                Item { Layout.fillWidth: true }
+                                ColumnLayout {
+                                    spacing: 1
+                                    Label { text: "LATEST"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
+                                    Label { text: (typeof Operational !== "undefined" && Operational && Operational.puemosAvailableVersion !== "") ? Operational.puemosAvailableVersion : "Current"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.text; elide: Text.ElideRight; Layout.fillWidth: true }
+                                }
                                 ColumnLayout {
                                     spacing: 1
                                     Label { text: "STATUS"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
-                                    Label { text: (typeof Operational !== "undefined" && Operational) ? Operational.puemosStatusText : "Up to date"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.success }
+                                    Label {
+                                        text: (typeof Operational !== "undefined" && Operational && Operational.puemosUpdateAvailable) ? "Update available" : ((typeof Operational !== "undefined" && Operational && Operational.puemosStatusText !== "") ? Operational.puemosStatusText : "Up to date")
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.smallSize
+                                        color: (typeof Operational !== "undefined" && Operational && Operational.puemosUpdateAvailable) ? Theme.accentHover : Theme.success
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
                                 }
-                                Item { Layout.fillWidth: true }
+                                ColumnLayout {
+                                    spacing: 1
+                                    Label { text: "SECURITY"; font.family: Theme.fontFamily; font.pixelSize: 10; font.bold: true; color: Theme.textDim }
+                                    Label { text: "Verified MV3"; font.family: Theme.fontFamily; font.pixelSize: Theme.smallSize; color: Theme.textMuted }
+                                }
+                            }
+
+                            // Actions Flow
+                            Flow {
+                                Layout.fillWidth: true
+                                width: parent ? parent.width : 0
+                                spacing: 8
+
                                 VSecondaryButton {
                                     text: (typeof Operational !== "undefined" && Operational && Operational.puemosBusy) ? "Working..." : "Check Update"
                                     enabled: !(typeof Operational !== "undefined" && Operational && Operational.puemosBusy)
                                     Layout.preferredHeight: 30
                                     onClicked: Operational.checkPuemosUpdate()
                                 }
+
                                 VPrimaryButton {
-                                    text: "Install"
+                                    text: "Install Update"
                                     visible: (typeof Operational !== "undefined" && Operational && Operational.puemosUpdateAvailable)
                                     enabled: !(typeof Operational !== "undefined" && Operational && Operational.puemosBusy)
                                     Layout.preferredHeight: 30
@@ -1267,8 +1367,9 @@ ScrollView {
                     }
                 }
 
-                RowLayout {
+                Flow {
                     Layout.fillWidth: true
+                    width: parent ? parent.width : 0
                     Layout.topMargin: 4
                     spacing: 12
 

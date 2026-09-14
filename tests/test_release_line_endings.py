@@ -18,17 +18,22 @@ from vrka_core.release_verifier import (
     verify_release_artifact,
 )
 
-RELEASE_DIR = Path(__file__).resolve().parent.parent / "releases" / "VRKA-4.5.1-Build-019"
+RELEASE_ROOT = Path(__file__).resolve().parent.parent / "releases"
+RELEASE_DIR_020 = RELEASE_ROOT / "VRKA-4.5.2-Build-020"
+RELEASE_DIR_019 = RELEASE_ROOT / "VRKA-4.5.1-Build-019"
+RELEASE_DIR = RELEASE_DIR_020 if RELEASE_DIR_020.is_dir() else RELEASE_DIR_019
+
 SHA256_FILE = RELEASE_DIR / "SHA256SUMS.txt"
 SHA256_SIG_FILE = RELEASE_DIR / "SHA256SUMS.txt.asc"
 MANIFEST_FILE = RELEASE_DIR / "RELEASE-MANIFEST.json"
 MANIFEST_SIG_FILE = RELEASE_DIR / "RELEASE-MANIFEST.json.asc"
 
+RELEASE_PREFIX = RELEASE_DIR.name
 PACKAGES = [
-    "VRKA-4.5.1-Build-019-Portable.exe",
-    "VRKA-4.5.1-Build-019-Portable.zip",
-    "VRKA-4.5.1-Build-019-Setup.exe",
-    "VRKA-4.5.1-Build-019-Source.zip",
+    f"{RELEASE_PREFIX}-Portable.exe",
+    f"{RELEASE_PREFIX}-Portable.zip",
+    f"{RELEASE_PREFIX}-Setup.exe",
+    f"{RELEASE_PREFIX}-Source.zip",
 ]
 
 

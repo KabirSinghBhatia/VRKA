@@ -51,6 +51,15 @@ class BatchUpdateState(str, Enum):
     CANCELLED = "cancelled"
 
 
+def _get_app_version() -> str:
+    """Derive installed application version dynamically from authoritative source."""
+    try:
+        import vrka_downloader as app
+        return str(getattr(app, "APP_DISPLAY_VERSION", getattr(app, "APP_VERSION", "4.5.2")))
+    except Exception:
+        return "4.5.2"
+
+
 class UpdateStateStore:
     """Thread-safe durable state storage for app and component updaters."""
 
@@ -68,7 +77,7 @@ class UpdateStateStore:
             "last_auto_popup_timestamp": 0.0,
             "app_update": {
                 "state": AppUpdateState.IDLE.value,
-                "current_version": "4.5.1",
+                "current_version": _get_app_version(),
                 "available_version": "",
                 "asset_name": "",
                 "last_check": 0.0,
@@ -189,6 +198,12 @@ class UpdateStateStore:
         """Record the timestamp of an automatic popup notification and persist."""
         with self._lock:
             self._data["last_auto_popup_timestamp"] = time.time() if timestamp is None else float(timestamp)
+            self.save()
+
+    def clear_auto_popup(self) -> None:
+        """Clear the automatic popup timestamp so future checks can notify immediately."""
+        with self._lock:
+            self._data["last_auto_popup_timestamp"] = 0.0
             self.save()
 
     # ------------------------------------------------------------------

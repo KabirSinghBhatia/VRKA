@@ -11,7 +11,7 @@
   </p>
 
   <p>
-    <a href="https://github.com/MaverickRox/VRKA/releases/latest"><b>Download VRKA 4.5.1</b></a> •
+    <a href="https://github.com/MaverickRox/VRKA/releases/latest"><b>Download VRKA 4.5.2</b></a> •
     <a href="docs/USER_GUIDE.md">User Guide</a> •
     <a href="docs/ARCHITECTURE_OVERVIEW.md">Architecture</a> •
     <a href="https://github.com/MaverickRox/VRKA/issues/new/choose">Report Issue</a> •
@@ -27,16 +27,16 @@
 
 ---
 
-## Download VRKA 4.5.1
+## Download VRKA 4.5.2
 
-Get the official Windows release from [GitHub Releases (v4.5.1)](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1):
+Get the official Windows release from [GitHub Releases (v4.5.2)](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.2):
 
 | Package | Filename | Recommended For | Description |
 | :--- | :--- | :--- | :--- |
-| **[Windows Installer](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Setup.exe` | Most Users | Standard setup wizard with Start Menu and Desktop shortcuts. |
-| **[Portable ZIP](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Portable.zip` | USB / Portable | Standalone directory — extract anywhere and run `VRKA.exe`. |
-| **[Single-File Portable EXE](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Portable.exe` | Lightweight Run | Single-file executable. Provisions managed runtime on first use. |
-| **[Complete Source Archive](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Source.zip` | Developers | Complete buildable source distribution snapshot. |
+| **[Windows Installer](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.2)** | `VRKA-4.5.2-Build-020-Setup.exe` | Most Users | Standard setup wizard with Start Menu and Desktop shortcuts. |
+| **[Portable ZIP](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.2)** | `VRKA-4.5.2-Build-020-Portable.zip` | USB / Portable | Standalone directory — extract anywhere and run `VRKA.exe`. |
+| **[Single-File Portable EXE](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.2)** | `VRKA-4.5.2-Build-020-Portable.exe` | Lightweight Run | Single-file executable. Provisions managed runtime on first use. |
+| **[Complete Source Archive](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.2)** | `VRKA-4.5.2-Build-020-Source.zip` | Developers | Complete buildable source distribution snapshot. |
 
 > **No Manual FFmpeg Installation Required**:
 > VRKA is strictly PATH-independent. The application automatically provisions and verifies required media processing components in `%LOCALAPPDATA%\VRKA\runtime\` upon first video merge or audio extraction, and reuses them offline on subsequent runs.
@@ -46,7 +46,7 @@ Get the official Windows release from [GitHub Releases (v4.5.1)](https://github.
 Every release provides a `SHA256SUMS.txt` manifest and detached OpenPGP signatures (`SHA256SUMS.txt.asc`). Verify your download in PowerShell:
 
 ```powershell
-Get-FileHash .\VRKA-4.5.1-Build-019-Setup.exe -Algorithm SHA256
+Get-FileHash .\VRKA-4.5.2-Build-020-Setup.exe -Algorithm SHA256
 ```
 
 ---
@@ -109,13 +109,13 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 
 ### Using the Setup Installer (Recommended)
 
-1. Download `VRKA-4.5.1-Build-019-Setup.exe` from [Releases](https://github.com/MaverickRox/VRKA/releases/latest).
+1. Download `VRKA-4.5.2-Build-020-Setup.exe` from [Releases](https://github.com/MaverickRox/VRKA/releases/latest).
 2. Run the installer and follow the setup steps.
 3. Launch VRKA from the Start Menu or Desktop shortcut.
 
 ### Using Portable Mode
 
-1. Download `VRKA-4.5.1-Build-019-Portable.zip`.
+1. Download `VRKA-4.5.2-Build-020-Portable.zip`.
 2. Extract the archive to any folder or USB drive.
 3. Run `VRKA.exe`. All settings are stored locally, and no administrative privileges are required.
 
