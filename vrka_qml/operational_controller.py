@@ -5,6 +5,7 @@ browser session clearing, and sanitized diagnostics.
 
 from __future__ import annotations
 
+import logging
 import os
 import platform
 import shutil
@@ -14,7 +15,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Property, QObject, QTimer, Signal, Slot
+_logger = logging.getLogger(__name__)
+
+
+from PySide6.QtCore import Property, QCoreApplication, QObject, Qt, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 
 import vrka_downloader as app
@@ -94,11 +98,17 @@ class OperationalController(QObject):
     # Diagnostics
     diagnosticsTextChanged = Signal()
 
+    # Thread-safe GUI Dispatch
+    _guiDispatch = Signal(object)
+
     def __init__(self, engine_host, bridge, settings_state, parent=None):
         super().__init__(parent)
         self._host = engine_host
         self._bridge = bridge
         self._settings = settings_state
+
+        # Queued dispatcher connection ensuring worker -> GUI delivery
+        self._guiDispatch.connect(self._run_on_gui, Qt.ConnectionType.QueuedConnection)
 
         # Persistent Update Store & Batch Updater
         self._store = UpdateStateStore()
@@ -160,6 +170,19 @@ class OperationalController(QObject):
         bridge.browserSessionReady.connect(self._on_browser_ready)
         bridge.browserSessionError.connect(self._on_browser_error)
 
+    @Slot(object)
+    def _run_on_gui(self, fn: Any) -> None:
+        try:
+            fn()
+        except Exception:
+            _logger.exception("Error executing GUI dispatch callback")
+
+    def _dispatch_to_gui(self, fn: Any) -> None:
+        if QCoreApplication.instance() is None:
+            fn()
+        else:
+            self._guiDispatch.emit(fn)
+
     @Slot()
     def initializeSubsystems(self) -> None:
         """Initialize runtime subsystem status asynchronously after UI creation."""
@@ -178,27 +201,26 @@ class OperationalController(QObject):
         def _worker():
             try:
                 res = self._batch_updater.check_all(bypass_rate_limit=False)
-                has_updates = bool(res.get("has_updates"))
-                can_popup = self._store.can_show_auto_popup()
-                updates = res.get("updates_list", []) if has_updates else []
-
-                def _apply_on_gui():
-                    if has_updates and can_popup:
-                        self._startup_updates = updates
-                        self._startup_dialog_visible = True
-                        self._store.record_auto_popup()
-                        self.startupUpdatesChanged.emit()
-                        self.startupDialogVisibleChanged.emit()
-                        self.startupUpdateDialogRequested.emit(updates)
-                    self._refresh_updater_snapshot()
-                    self._refresh_observer_snapshot()
-                    self._refresh_ubol_snapshot()
-
-                QTimer.singleShot(0, _apply_on_gui)
+                self._dispatch_to_gui(lambda r=res: self._on_startup_check_finished(r))
             except Exception:
                 pass
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_startup_check_finished(self, res: dict) -> None:
+        has_updates = bool(res.get("has_updates"))
+        can_popup = self._store.can_show_auto_popup()
+        updates = res.get("updates_list", []) if has_updates else []
+        if has_updates and can_popup:
+            self._startup_updates = updates
+            self._startup_dialog_visible = True
+            self._store.record_auto_popup()
+            self.startupUpdatesChanged.emit()
+            self.startupDialogVisibleChanged.emit()
+            self.startupUpdateDialogRequested.emit(updates)
+        self._refresh_updater_snapshot()
+        self._refresh_observer_snapshot()
+        self._refresh_ubol_snapshot()
 
     # ------------------------------------------------------------------
     # Browser session & Fallback
@@ -460,32 +482,42 @@ class OperationalController(QObject):
         def _worker():
             try:
                 info = self._batch_updater.ubol.check_update()
-                if info.get("error"):
-                    self._ubol_operational_status = "Failed"
-                    self._ubol_status_text = f"Check failed: {info.get('error')}"
-                elif info.get("update_available"):
-                    self._ubol_operational_status = "Update available"
-                    self._ubol_available_version = str(info.get("available_version"))
-                    self._ubol_update_available = True
-                    self._ubol_status_text = f"Update available: {self._ubol_available_version}"
-                else:
-                    self._ubol_operational_status = "Up to date"
-                    self._ubol_status_text = f"uBOL is current ({info.get('current_version')})"
-                self.ubolOperationalStatusChanged.emit()
-                self.ubolStatusTextChanged.emit()
-                self.ubolAvailableVersionChanged.emit()
-                self.ubolUpdateAvailableChanged.emit()
-                self._refresh_ubol_snapshot()
+                self._dispatch_to_gui(lambda inf=info: self._on_ubol_check_finished(inf))
             except Exception as exc:
-                self._ubol_operational_status = "Failed"
-                self._ubol_status_text = f"Check error: {exc}"
-                self.ubolOperationalStatusChanged.emit()
-                self.ubolStatusTextChanged.emit()
-            finally:
-                self._ubol_busy = False
-                self.ubolBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_ubol_check_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_ubol_check_finished(self, info: dict) -> None:
+        try:
+            if info.get("error"):
+                self._ubol_operational_status = "Failed"
+                self._ubol_status_text = f"Check failed: {info.get('error')}"
+            elif info.get("update_available"):
+                self._ubol_operational_status = "Update available"
+                self._ubol_available_version = str(info.get("available_version"))
+                self._ubol_update_available = True
+                self._ubol_status_text = f"Update available: {self._ubol_available_version}"
+            else:
+                self._ubol_operational_status = "Up to date"
+                self._ubol_status_text = f"uBOL is current ({info.get('current_version')})"
+            self.ubolOperationalStatusChanged.emit()
+            self.ubolStatusTextChanged.emit()
+            self.ubolAvailableVersionChanged.emit()
+            self.ubolUpdateAvailableChanged.emit()
+            self._refresh_ubol_snapshot()
+        finally:
+            self._ubol_busy = False
+            self.ubolBusyChanged.emit()
+
+    def _on_ubol_check_failed(self, error: str) -> None:
+        self._ubol_operational_status = "Failed"
+        self._ubol_status_text = f"Check error: {error}"
+        self.ubolOperationalStatusChanged.emit()
+        self.ubolStatusTextChanged.emit()
+        self._ubol_busy = False
+        self.ubolBusyChanged.emit()
 
     @Slot()
     def installUbolUpdate(self) -> None:
@@ -501,27 +533,37 @@ class OperationalController(QObject):
         def _worker():
             try:
                 res = self._batch_updater.ubol.install_update()
-                if res.get("updated"):
-                    self._ubol_operational_status = "Active"
-                    self._ubol_update_available = False
-                    self._ubol_status_text = f"Updated to {res.get('installed_version')}"
-                else:
-                    self._ubol_operational_status = "Failed"
-                    self._ubol_status_text = f"Update failed: {res.get('error')}"
-                self.ubolOperationalStatusChanged.emit()
-                self.ubolStatusTextChanged.emit()
-                self.ubolUpdateAvailableChanged.emit()
-                self._refresh_ubol_snapshot()
+                self._dispatch_to_gui(lambda r=res: self._on_ubol_install_finished(r))
             except Exception as exc:
-                self._ubol_operational_status = "Failed"
-                self._ubol_status_text = f"Update error: {exc}"
-                self.ubolOperationalStatusChanged.emit()
-                self.ubolStatusTextChanged.emit()
-            finally:
-                self._ubol_busy = False
-                self.ubolBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_ubol_install_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_ubol_install_finished(self, res: dict) -> None:
+        try:
+            if res.get("updated"):
+                self._ubol_operational_status = "Active"
+                self._ubol_update_available = False
+                self._ubol_status_text = f"Updated to {res.get('installed_version')}"
+            else:
+                self._ubol_operational_status = "Failed"
+                self._ubol_status_text = f"Update failed: {res.get('error')}"
+            self.ubolOperationalStatusChanged.emit()
+            self.ubolStatusTextChanged.emit()
+            self.ubolUpdateAvailableChanged.emit()
+            self._refresh_ubol_snapshot()
+        finally:
+            self._ubol_busy = False
+            self.ubolBusyChanged.emit()
+
+    def _on_ubol_install_failed(self, error: str) -> None:
+        self._ubol_operational_status = "Failed"
+        self._ubol_status_text = f"Update error: {error}"
+        self.ubolOperationalStatusChanged.emit()
+        self.ubolStatusTextChanged.emit()
+        self._ubol_busy = False
+        self.ubolBusyChanged.emit()
 
     # ------------------------------------------------------------------
     # Puemos Actions
@@ -541,32 +583,42 @@ class OperationalController(QObject):
         def _worker():
             try:
                 info = self._batch_updater.puemos.check_update()
-                if info.get("error"):
-                    self._puemos_operational_status = "Failed"
-                    self._puemos_status_text = f"Check failed: {info.get('error')}"
-                elif info.get("update_available"):
-                    self._puemos_operational_status = "Update available"
-                    self._puemos_status_text = f"Update available: {info.get('available_version')}"
-                    self._puemos_available_version = str(info.get("available_version"))
-                    self._puemos_update_available = True
-                else:
-                    self._puemos_operational_status = "Up to date"
-                    self._puemos_status_text = f"Observer up to date ({info.get('available_version') or '5.5.0'})"
-                self.puemosOperationalStatusChanged.emit()
-                self.puemosStatusTextChanged.emit()
-                self.puemosAvailableVersionChanged.emit()
-                self.puemosUpdateAvailableChanged.emit()
-                self._refresh_observer_snapshot()
+                self._dispatch_to_gui(lambda inf=info: self._on_puemos_check_finished(inf))
             except Exception as exc:
-                self._puemos_operational_status = "Failed"
-                self._puemos_status_text = f"Observer check error: {exc}"
-                self.puemosOperationalStatusChanged.emit()
-                self.puemosStatusTextChanged.emit()
-            finally:
-                self._puemos_busy = False
-                self.puemosBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_puemos_check_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_puemos_check_finished(self, info: dict) -> None:
+        try:
+            if info.get("error"):
+                self._puemos_operational_status = "Failed"
+                self._puemos_status_text = f"Check failed: {info.get('error')}"
+            elif info.get("update_available"):
+                self._puemos_operational_status = "Update available"
+                self._puemos_status_text = f"Update available: {info.get('available_version')}"
+                self._puemos_available_version = str(info.get("available_version"))
+                self._puemos_update_available = True
+            else:
+                self._puemos_operational_status = "Up to date"
+                self._puemos_status_text = f"Observer up to date ({info.get('available_version') or '5.5.0'})"
+            self.puemosOperationalStatusChanged.emit()
+            self.puemosStatusTextChanged.emit()
+            self.puemosAvailableVersionChanged.emit()
+            self.puemosUpdateAvailableChanged.emit()
+            self._refresh_observer_snapshot()
+        finally:
+            self._puemos_busy = False
+            self.puemosBusyChanged.emit()
+
+    def _on_puemos_check_failed(self, error: str) -> None:
+        self._puemos_operational_status = "Failed"
+        self._puemos_status_text = f"Observer check error: {error}"
+        self.puemosOperationalStatusChanged.emit()
+        self.puemosStatusTextChanged.emit()
+        self._puemos_busy = False
+        self.puemosBusyChanged.emit()
 
     @Slot()
     def checkObserverUpdate(self) -> None:
@@ -586,27 +638,37 @@ class OperationalController(QObject):
         def _worker():
             try:
                 result = self._batch_updater.puemos.install_update()
-                if result.get("updated"):
-                    self._puemos_operational_status = "Up to date"
-                    self._puemos_update_available = False
-                    self._puemos_status_text = f"Updated to {result.get('installed_version')}"
-                else:
-                    self._puemos_operational_status = "Failed"
-                    self._puemos_status_text = f"Observer update failed: {result.get('error')}"
-                self.puemosOperationalStatusChanged.emit()
-                self.puemosStatusTextChanged.emit()
-                self.puemosUpdateAvailableChanged.emit()
-                self._refresh_observer_snapshot()
+                self._dispatch_to_gui(lambda res=result: self._on_puemos_install_finished(res))
             except Exception as exc:
-                self._puemos_operational_status = "Failed"
-                self._puemos_status_text = f"Observer update error: {exc}"
-                self.puemosOperationalStatusChanged.emit()
-                self.puemosStatusTextChanged.emit()
-            finally:
-                self._puemos_busy = False
-                self.puemosBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_puemos_install_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_puemos_install_finished(self, result: dict) -> None:
+        try:
+            if result.get("updated"):
+                self._puemos_operational_status = "Up to date"
+                self._puemos_update_available = False
+                self._puemos_status_text = f"Updated to {result.get('installed_version')}"
+            else:
+                self._puemos_operational_status = "Failed"
+                self._puemos_status_text = f"Observer update failed: {result.get('error')}"
+            self.puemosOperationalStatusChanged.emit()
+            self.puemosStatusTextChanged.emit()
+            self.puemosUpdateAvailableChanged.emit()
+            self._refresh_observer_snapshot()
+        finally:
+            self._puemos_busy = False
+            self.puemosBusyChanged.emit()
+
+    def _on_puemos_install_failed(self, error: str) -> None:
+        self._puemos_operational_status = "Failed"
+        self._puemos_status_text = f"Observer update error: {error}"
+        self.puemosOperationalStatusChanged.emit()
+        self.puemosStatusTextChanged.emit()
+        self._puemos_busy = False
+        self.puemosBusyChanged.emit()
 
     # ------------------------------------------------------------------
     # yt-dlp Component Updater
@@ -668,26 +730,36 @@ class OperationalController(QObject):
         def _worker():
             try:
                 info = self._batch_updater.ytdlp.check_update(channel)
-                available = str(info.get("available_version") or "")
-                self._updater_available_version = available
-                self._updater_update_available = bool(info.get("update_available"))
-                if info.get("error"):
-                    self._updater_status_text = f"Check failed: {info.get('error')}"
-                elif info.get("update_available"):
-                    self._updater_status_text = f"Update available: {available} (current {self._updater_current_version})"
-                else:
-                    self._updater_status_text = f"yt-dlp is current ({self._updater_current_version})"
-                self.updaterAvailableVersionChanged.emit()
-                self.updaterUpdateAvailableChanged.emit()
-                self.updaterStatusTextChanged.emit()
+                self._dispatch_to_gui(lambda inf=info: self._on_updater_check_finished(inf))
             except Exception as exc:
-                self._updater_status_text = f"Check failed: {exc}"
-                self.updaterStatusTextChanged.emit()
-            finally:
-                self._updater_busy = False
-                self.updaterBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_updater_check_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_updater_check_finished(self, info: dict) -> None:
+        try:
+            available = str(info.get("available_version") or "")
+            self._updater_available_version = available
+            self._updater_update_available = bool(info.get("update_available"))
+            if info.get("error"):
+                self._updater_status_text = f"Check failed: {info.get('error')}"
+            elif info.get("update_available"):
+                self._updater_status_text = f"Update available: {available} (current {self._updater_current_version})"
+            else:
+                self._updater_status_text = f"yt-dlp is current ({self._updater_current_version})"
+            self.updaterAvailableVersionChanged.emit()
+            self.updaterUpdateAvailableChanged.emit()
+            self.updaterStatusTextChanged.emit()
+        finally:
+            self._updater_busy = False
+            self.updaterBusyChanged.emit()
+
+    def _on_updater_check_failed(self, error: str) -> None:
+        self._updater_status_text = f"Check failed: {error}"
+        self.updaterStatusTextChanged.emit()
+        self._updater_busy = False
+        self.updaterBusyChanged.emit()
 
     @Slot()
     def installUpdate(self) -> None:
@@ -702,22 +774,32 @@ class OperationalController(QObject):
         def _worker():
             try:
                 installed = self._batch_updater.ytdlp.install_update(channel=channel)
-                if installed.get("updated"):
-                    self._updater_update_available = False
-                    self._refresh_updater_snapshot()
-                    self._updater_status_text = f"Updated to {installed.get('version')}"
-                else:
-                    self._updater_status_text = f"Update failed: {installed.get('error')}"
-                self.updaterUpdateAvailableChanged.emit()
-                self.updaterStatusTextChanged.emit()
+                self._dispatch_to_gui(lambda inst=installed: self._on_updater_install_finished(inst))
             except Exception as exc:
-                self._updater_status_text = f"Update failed: {exc}"
-                self.updaterStatusTextChanged.emit()
-            finally:
-                self._updater_busy = False
-                self.updaterBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_updater_install_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_updater_install_finished(self, installed: dict) -> None:
+        try:
+            if installed.get("updated"):
+                self._updater_update_available = False
+                self._refresh_updater_snapshot()
+                self._updater_status_text = f"Updated to {installed.get('version')}"
+            else:
+                self._updater_status_text = f"Update failed: {installed.get('error')}"
+            self.updaterUpdateAvailableChanged.emit()
+            self.updaterStatusTextChanged.emit()
+        finally:
+            self._updater_busy = False
+            self.updaterBusyChanged.emit()
+
+    def _on_updater_install_failed(self, error: str) -> None:
+        self._updater_status_text = f"Update failed: {error}"
+        self.updaterStatusTextChanged.emit()
+        self._updater_busy = False
+        self.updaterBusyChanged.emit()
 
     @Slot()
     def rollbackUpdate(self) -> None:
@@ -731,20 +813,30 @@ class OperationalController(QObject):
         def _worker():
             try:
                 info = self._batch_updater.ytdlp.rollback()
-                if info.get("rolled_back"):
-                    self._updater_status_text = f"Rolled back to {info.get('version')}"
-                    self._refresh_updater_snapshot()
-                else:
-                    self._updater_status_text = f"Rollback failed: {info.get('error')}"
-                self.updaterStatusTextChanged.emit()
+                self._dispatch_to_gui(lambda inf=info: self._on_updater_rollback_finished(inf))
             except Exception as exc:
-                self._updater_status_text = f"Rollback failed: {exc}"
-                self.updaterStatusTextChanged.emit()
-            finally:
-                self._updater_busy = False
-                self.updaterBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_updater_rollback_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_updater_rollback_finished(self, info: dict) -> None:
+        try:
+            if info.get("rolled_back"):
+                self._updater_status_text = f"Rolled back to {info.get('version')}"
+                self._refresh_updater_snapshot()
+            else:
+                self._updater_status_text = f"Rollback failed: {info.get('error')}"
+            self.updaterStatusTextChanged.emit()
+        finally:
+            self._updater_busy = False
+            self.updaterBusyChanged.emit()
+
+    def _on_updater_rollback_failed(self, error: str) -> None:
+        self._updater_status_text = f"Rollback failed: {error}"
+        self.updaterStatusTextChanged.emit()
+        self._updater_busy = False
+        self.updaterBusyChanged.emit()
 
     # ------------------------------------------------------------------
     # Batch Update Actions (Check All Updates)
@@ -763,34 +855,45 @@ class OperationalController(QObject):
         def _worker():
             try:
                 res = self._batch_updater.check_all(bypass_rate_limit=True)
-                has_up = res.get("has_updates", False)
-                up_list = res.get("updates_list", [])
-
-                def _apply_on_gui():
-                    if res.get("error"):
-                        self._batch_status_text = f"Batch check failed: {res.get('error')}"
-                    elif has_up:
-                        self._batch_status_text = f"Updates available for {len(up_list)} component(s)."
-                    else:
-                        self._batch_status_text = "All components are up to date."
-                    self._refresh_updater_snapshot()
-                    self._refresh_observer_snapshot()
-                    self._refresh_ubol_snapshot()
-                    self.batchStatusTextChanged.emit()
-
-                QTimer.singleShot(0, _apply_on_gui)
+                self._dispatch_to_gui(lambda r=res: self._on_batch_check_finished(r))
             except Exception as exc:
-                def _err_on_gui(err=str(exc)):
-                    self._batch_status_text = f"Batch check error: {err}"
-                    self.batchStatusTextChanged.emit()
-                QTimer.singleShot(0, _err_on_gui)
-            finally:
-                def _done_on_gui():
-                    self._batch_busy = False
-                    self.batchBusyChanged.emit()
-                QTimer.singleShot(0, _done_on_gui)
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_batch_check_error(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_batch_check_finished(self, res: dict) -> None:
+        try:
+            has_up = res.get("has_updates", False)
+            up_list = res.get("updates_list", [])
+
+            # 1. Update component snapshots
+            self._refresh_updater_snapshot()
+            self._refresh_observer_snapshot()
+            self._refresh_ubol_snapshot()
+
+            # 2. Set final batch status
+            if res.get("error"):
+                self._batch_status_text = f"Batch check failed: {res.get('error')}"
+            elif has_up:
+                self._batch_status_text = f"Updates available for {len(up_list)} component(s)."
+            else:
+                self._batch_status_text = "All components are up to date."
+
+            # 3. Emit batchStatusTextChanged
+            self.batchStatusTextChanged.emit()
+        finally:
+            # 4. Set _batch_busy = False and emit batchBusyChanged
+            self._batch_busy = False
+            self.batchBusyChanged.emit()
+
+    def _on_batch_check_error(self, err: str) -> None:
+        try:
+            self._batch_status_text = f"Batch check error: {err}"
+            self.batchStatusTextChanged.emit()
+        finally:
+            self._batch_busy = False
+            self.batchBusyChanged.emit()
 
     @Slot()
     def updateAllAvailable(self) -> None:
@@ -805,32 +908,36 @@ class OperationalController(QObject):
         def _worker():
             try:
                 res = self._batch_updater.update_all()
-                summary = res.get("summary", "")
-                success = bool(res.get("success"))
-
-                def _apply_on_gui():
-                    if success:
-                        self._batch_status_text = summary or "All components successfully updated."
-                    else:
-                        self._batch_status_text = summary or f"One or more updates failed: {res.get('error', 'Check logs')}"
-                    self._refresh_updater_snapshot()
-                    self._refresh_observer_snapshot()
-                    self._refresh_ubol_snapshot()
-                    self.batchStatusTextChanged.emit()
-
-                QTimer.singleShot(0, _apply_on_gui)
+                self._dispatch_to_gui(lambda r=res: self._on_batch_update_finished(r))
             except Exception as exc:
-                def _err_on_gui(err=str(exc)):
-                    self._batch_status_text = f"Batch update error: {err}"
-                    self.batchStatusTextChanged.emit()
-                QTimer.singleShot(0, _err_on_gui)
-            finally:
-                def _done_on_gui():
-                    self._batch_busy = False
-                    self.batchBusyChanged.emit()
-                QTimer.singleShot(0, _done_on_gui)
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_batch_update_error(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_batch_update_finished(self, res: dict) -> None:
+        try:
+            summary = res.get("summary", "")
+            success = bool(res.get("success"))
+            if success:
+                self._batch_status_text = summary or "All components successfully updated."
+            else:
+                self._batch_status_text = summary or f"One or more updates failed: {res.get('error', 'Check logs')}"
+            self._refresh_updater_snapshot()
+            self._refresh_observer_snapshot()
+            self._refresh_ubol_snapshot()
+            self.batchStatusTextChanged.emit()
+        finally:
+            self._batch_busy = False
+            self.batchBusyChanged.emit()
+
+    def _on_batch_update_error(self, err: str) -> None:
+        try:
+            self._batch_status_text = f"Batch update error: {err}"
+            self.batchStatusTextChanged.emit()
+        finally:
+            self._batch_busy = False
+            self.batchBusyChanged.emit()
 
     @Slot()
     def dismissStartupDialog(self) -> None:
@@ -884,31 +991,43 @@ class OperationalController(QObject):
             try:
                 curr_ver = str(getattr(app, "APP_DISPLAY_VERSION", getattr(app, "APP_VERSION", "4.5.2")))
                 info = check_for_application_update(curr_ver, store=self._store)
-                self._cached_update_info = info
-                if info.update_available:
-                    self._app_update_available = True
-                    self._app_update_latest_version = info.latest_version
-                    self._app_update_release_notes = info.release_notes
-                    self._app_update_status_text = f"New application update available: v{info.latest_version}"
-                    self.appUpdateAvailableChanged.emit()
-                    self.appUpdateLatestVersionChanged.emit()
-                    self.appUpdateReleaseNotesChanged.emit()
-                else:
-                    self._app_update_available = False
-                    self._app_update_latest_version = info.latest_version
-                    self._app_update_status_text = f"VRKA {curr_ver} is up to date (latest v{info.latest_version})."
-                    self.appUpdateAvailableChanged.emit()
-                    self.appUpdateLatestVersionChanged.emit()
-                self.appUpdateReleaseNotesChanged.emit()
-                self.appUpdateStatusTextChanged.emit()
+                self._dispatch_to_gui(lambda inf=info, cv=curr_ver: self._on_app_update_finished(inf, cv))
             except Exception as exc:
-                self._app_update_status_text = f"Update check failed: {exc}"
-                self.appUpdateStatusTextChanged.emit()
-            finally:
-                self._app_update_busy = False
-                self.appUpdateBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_app_update_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_app_update_finished(self, info: AppUpdateInfo, curr_ver: str) -> None:
+        try:
+            self._cached_update_info = info
+            if info.is_newer:
+                self._app_update_available = True
+                self._app_update_latest_version = info.latest_version
+                self._app_update_release_notes = info.release_notes
+                self._app_update_status_text = f"New application update available: v{info.latest_version}"
+                self.appUpdateAvailableChanged.emit()
+                self.appUpdateLatestVersionChanged.emit()
+                self.appUpdateReleaseNotesChanged.emit()
+            else:
+                self._app_update_available = False
+                self._app_update_latest_version = info.latest_version
+                self._app_update_status_text = f"VRKA {curr_ver} is up to date (latest v{info.latest_version})."
+                self.appUpdateAvailableChanged.emit()
+                self.appUpdateLatestVersionChanged.emit()
+            self.appUpdateReleaseNotesChanged.emit()
+            self.appUpdateStatusTextChanged.emit()
+        finally:
+            self._app_update_busy = False
+            self.appUpdateBusyChanged.emit()
+
+    def _on_app_update_failed(self, error: str) -> None:
+        try:
+            self._app_update_status_text = f"Update check failed: {error}"
+            self.appUpdateStatusTextChanged.emit()
+        finally:
+            self._app_update_busy = False
+            self.appUpdateBusyChanged.emit()
 
     @Slot()
     def downloadAndInstallAppUpdate(self) -> None:
@@ -919,30 +1038,48 @@ class OperationalController(QObject):
         self.appUpdateBusyChanged.emit()
         self.appUpdateStatusTextChanged.emit()
 
+        def _prog(cur, total):
+            if total > 0:
+                pct = int((cur / total) * 100)
+                msg = f"Downloading update: {pct}% ({cur // 1024} KB / {total // 1024} KB)"
+                self._dispatch_to_gui(lambda m=msg: self._on_app_download_progress(m))
+
         def _worker():
             try:
-                def _prog(cur, total):
-                    if total > 0:
-                        pct = int((cur / total) * 100)
-                        self._app_update_status_text = f"Downloading update: {pct}% ({cur // 1024} KB / {total // 1024} KB)"
-                        self.appUpdateStatusTextChanged.emit()
-
                 target_exe = download_and_verify_update(
                     self._cached_update_info,
                     progress_cb=_prog,
                     store=self._store,
                 )
-                self._app_update_status_text = f"Verified package ready: {target_exe.name}. Launching setup..."
-                self.appUpdateStatusTextChanged.emit()
-                os.startfile(str(target_exe))
+                exe_str = str(target_exe)
+                exe_name = target_exe.name
+                self._dispatch_to_gui(lambda ep=exe_str, en=exe_name: self._on_app_download_finished(ep, en))
             except Exception as exc:
-                self._app_update_status_text = f"Update download failed: {exc}"
-                self.appUpdateStatusTextChanged.emit()
-            finally:
-                self._app_update_busy = False
-                self.appUpdateBusyChanged.emit()
+                err_msg = str(exc)
+                self._dispatch_to_gui(lambda err=err_msg: self._on_app_download_failed(err))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_app_download_progress(self, msg: str) -> None:
+        self._app_update_status_text = msg
+        self.appUpdateStatusTextChanged.emit()
+
+    def _on_app_download_finished(self, exe_path: str, exe_name: str) -> None:
+        try:
+            self._app_update_status_text = f"Verified package ready: {exe_name}. Launching setup..."
+            self.appUpdateStatusTextChanged.emit()
+            os.startfile(exe_path)
+        finally:
+            self._app_update_busy = False
+            self.appUpdateBusyChanged.emit()
+
+    def _on_app_download_failed(self, error: str) -> None:
+        try:
+            self._app_update_status_text = f"Update download failed: {error}"
+            self.appUpdateStatusTextChanged.emit()
+        finally:
+            self._app_update_busy = False
+            self.appUpdateBusyChanged.emit()
 
     # ------------------------------------------------------------------
     # Sanitized Diagnostics
@@ -977,10 +1114,15 @@ class OperationalController(QObject):
         full_text = "\n".join(lines)
         sanitized = redact_secrets_from_text(full_text)
 
-        # Copy to clipboard
-        clipboard = QGuiApplication.clipboard()
-        if clipboard:
-            clipboard.setText(sanitized)
+        # Copy to clipboard if running in a GUI application
+        app_inst = QCoreApplication.instance()
+        if isinstance(app_inst, QGuiApplication):
+            clipboard = QGuiApplication.clipboard()
+            if clipboard:
+                try:
+                    clipboard.setText(sanitized)
+                except Exception:
+                    pass
 
         return sanitized
 

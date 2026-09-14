@@ -73,8 +73,12 @@ class SettingsAndParityTests(unittest.TestCase):
         op_ctrl.openOutputFolder()
 
     def test_independent_component_update_states(self):
+        import time
+        from PySide6.QtCore import QCoreApplication
+
         settings = SettingsState(self.mock_host)
         op_ctrl = OperationalController(self.mock_host, self.mock_bridge, settings)
+        op_ctrl._batch_updater.ubol.check_update = MagicMock(return_value={"update_available": False, "current_version": "1.0.4 (MV3)"})
 
         # Initial state checks
         self.assertFalse(op_ctrl.updaterBusy)
@@ -87,6 +91,14 @@ class SettingsAndParityTests(unittest.TestCase):
         op_ctrl.checkUbolUpdate()
         self.assertFalse(op_ctrl.updaterBusy)
         self.assertFalse(op_ctrl.puemosBusy)
+
+        # Drain events until worker finishes cleanly
+        t0 = time.time()
+        while time.time() - t0 < 1.0 and op_ctrl.ubolBusy:
+            QCoreApplication.processEvents()
+            time.sleep(0.01)
+        QCoreApplication.processEvents()
+
 
     def test_subsystem_startup_initialization(self):
         settings = SettingsState(self.mock_host)
