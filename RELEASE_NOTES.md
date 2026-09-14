@@ -8,7 +8,7 @@ Build 019
 - **24-Hour Rate-Limited Startup Check**: Background check at most once per 24 hours with durable persistence in `~/.vrka/update_state.json`.
 - **Unified Component Update Prompt**: Non-blocking modal overlay showing all available updates with one-click batch installation and non-nagging "Later" dismissal.
 - **Concurrency & Debounce Protection**: Background worker locks preventing simultaneous update checks or race conditions.
-- **Full Test Suite Coverage**: 156 automated tests with 100% pass rate.
+- **Full Test Suite Coverage**: 163 automated tests with 100% pass rate.
 
 ## Updates & Maintenance
 - **yt-dlp**: Independent checks against upstream GitHub releases with `SHA2-256SUMS` and `SHA2-256SUMS.sig` OpenPGP verification (signed by pinned key `57CF65933B5A7581`), binary execution test, and safe rollback via `.yt-dlp.previous.exe`.

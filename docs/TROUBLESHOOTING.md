@@ -28,6 +28,6 @@
 ## Submitting an Issue
 
 If a problem persists, submit an issue on [GitHub Issues](https://github.com/MaverickRox/VRKA/issues/new/choose):
-- Include your VRKA version (`4.5.0 Build 018`) and Windows version.
+- Include your VRKA version (`4.5.1 Build 019`) and Windows version.
 - Provide steps to reproduce the issue.
 - Export and attach a sanitized report from **Settings** > **Diagnostics**, or paste relevant log output with any personal paths, tokens, or cookies removed.

@@ -12,10 +12,12 @@ Tests:
 """
 
 import hashlib
+import json
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from vrka_core.updater_state import AppUpdateState, UpdateStateStore
 from vrka_qml.app_updater import (
@@ -26,6 +28,7 @@ from vrka_qml.app_updater import (
     _PORTABLE_EXE_PATTERN,
     _PORTABLE_ZIP_PATTERN,
     _SETUP_EXE_PATTERN,
+    check_for_application_update,
     download_and_verify_update,
     is_installer_installation,
 )
@@ -197,6 +200,106 @@ class AppUpdaterTests(unittest.TestCase):
             new_store = UpdateStateStore(store_file)
             self.assertEqual(new_store.get_app_state()["state"], AppUpdateState.READY_TO_INSTALL.value)
             self.assertEqual(new_store.get_app_state()["available_version"], "4.5.2")
+
+    def test_check_for_application_update_persistence_no_name_error(self):
+        """Verify that persisting update state with time.time() does not raise NameError."""
+        payload = {
+            "tag_name": "v4.5.1",
+            "body": "Release 4.5.1",
+            "published_at": "2026-09-14T12:00:00Z",
+            "assets": [
+                {"name": "VRKA-4.5.1-Build-019-Setup.exe", "browser_download_url": "https://github.com/MaverickRox/VRKA/releases/download/v4.5.1/VRKA-4.5.1-Build-019-Setup.exe"},
+                {"name": "SHA256SUMS.txt", "browser_download_url": "https://github.com/MaverickRox/VRKA/releases/download/v4.5.1/SHA256SUMS.txt"},
+                {"name": "SHA256SUMS.txt.asc", "browser_download_url": "https://github.com/MaverickRox/VRKA/releases/download/v4.5.1/SHA256SUMS.txt.asc"},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as td:
+            store = UpdateStateStore(Path(td) / "update_state.json")
+
+            with patch("urllib.request.build_opener") as mock_build:
+                mock_opener = MagicMock()
+                mock_resp = MagicMock()
+                mock_resp.read.return_value = json.dumps(payload).encode("utf-8")
+                mock_opener.open.return_value.__enter__.return_value = mock_resp
+                mock_build.return_value = mock_opener
+
+                info = check_for_application_update("4.5.1", store=store)
+                self.assertIsNotNone(info)
+                self.assertEqual(info.latest_version, "4.5.1")
+                self.assertFalse(info.is_newer)
+
+                app_state = store.get_app_state()
+                self.assertGreater(app_state.get("last_check", 0), 0)
+                self.assertEqual(app_state.get("current_version"), "4.5.1")
+                self.assertEqual(app_state.get("state"), AppUpdateState.IDLE.value)
+
+    def test_equal_version_produces_up_to_date_result(self):
+        """Equal release version produces is_newer=False (up to date)."""
+        payload = {
+            "tag_name": "v4.5.1",
+            "body": "Current release",
+            "published_at": "2026-09-14T12:00:00Z",
+            "assets": [],
+        }
+        with patch("urllib.request.build_opener") as mock_build:
+            mock_opener = MagicMock()
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps(payload).encode("utf-8")
+            mock_opener.open.return_value.__enter__.return_value = mock_resp
+            mock_build.return_value = mock_opener
+
+            info = check_for_application_update("4.5.1")
+            self.assertIsNotNone(info)
+            self.assertEqual(info.latest_version, "4.5.1")
+            self.assertFalse(info.is_newer)
+
+    def test_newer_version_produces_update_available(self):
+        """Newer release version produces is_newer=True and reports available."""
+        payload = {
+            "tag_name": "v4.6.0",
+            "body": "New feature release",
+            "published_at": "2026-09-20T12:00:00Z",
+            "assets": [
+                {"name": "VRKA-4.6.0-Setup.exe", "browser_download_url": "https://github.com/MaverickRox/VRKA/releases/download/v4.6.0/VRKA-4.6.0-Setup.exe"}
+            ],
+        }
+        with tempfile.TemporaryDirectory() as td:
+            store = UpdateStateStore(Path(td) / "update_state.json")
+            with patch("urllib.request.build_opener") as mock_build:
+                mock_opener = MagicMock()
+                mock_resp = MagicMock()
+                mock_resp.read.return_value = json.dumps(payload).encode("utf-8")
+                mock_opener.open.return_value.__enter__.return_value = mock_resp
+                mock_build.return_value = mock_opener
+
+                info = check_for_application_update("4.5.1", store=store)
+                self.assertIsNotNone(info)
+                self.assertEqual(info.latest_version, "4.6.0")
+                self.assertTrue(info.is_newer)
+                self.assertEqual(store.get_app_state()["state"], AppUpdateState.AVAILABLE.value)
+
+    def test_older_version_does_not_produce_update_available(self):
+        """Older release version produces is_newer=False (downgrade rejection)."""
+        payload = {
+            "tag_name": "v4.5.0",
+            "body": "Older release",
+            "published_at": "2026-09-10T12:00:00Z",
+            "assets": [],
+        }
+        with tempfile.TemporaryDirectory() as td:
+            store = UpdateStateStore(Path(td) / "update_state.json")
+            with patch("urllib.request.build_opener") as mock_build:
+                mock_opener = MagicMock()
+                mock_resp = MagicMock()
+                mock_resp.read.return_value = json.dumps(payload).encode("utf-8")
+                mock_opener.open.return_value.__enter__.return_value = mock_resp
+                mock_build.return_value = mock_opener
+
+                info = check_for_application_update("4.5.1", store=store)
+                self.assertIsNotNone(info)
+                self.assertEqual(info.latest_version, "4.5.0")
+                self.assertFalse(info.is_newer)
+                self.assertEqual(store.get_app_state()["state"], AppUpdateState.IDLE.value)
 
 
 if __name__ == "__main__":

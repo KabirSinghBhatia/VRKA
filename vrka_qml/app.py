@@ -1,4 +1,4 @@
-"""Core Qt Quick bootstrap for VRKA 4.5.0 (Build 018).
+"""Core Qt Quick bootstrap for VRKA 4.5.1 (Build 019).
 
 Presentation layer: loads the QML shell and wires the presentation bridge
 to the engine host.

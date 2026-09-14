@@ -4,8 +4,8 @@
 
 | Result | Count |
 | :--- | ---: |
-| Tests | 156 |
-| Passed | 156 |
+| Tests | 163 |
+| Passed | 163 |
 | Failed | 0 |
 | Errors | 0 |
 | Skipped | 0 |
@@ -16,7 +16,7 @@
 
 | Suite Module | Tests | Status | Scope |
 | :--- | :---: | :---: | :--- |
-| `tests.test_app_updater` | 10 | PASSED | SemanticVersion parsing, downgrade rejection, redirect allowlisting, hop limits, package SHA-256 verification, concurrency locking, and fail-closed staging cleanup. |
+| `tests.test_app_updater` | 14 | PASSED | SemanticVersion parsing, downgrade rejection, redirect allowlisting, hop limits, package SHA-256 verification, concurrency locking, fail-closed staging cleanup, and update state persistence without NameError. |
 | `tests.test_build010_core` | 7 | PASSED | Core download state persistence, FIFO queue ordering, and task state transitions. |
 | `tests.test_build010_scheduler` | 8 | PASSED | Single-worker FIFO task scheduling, process isolation, cancellation, and task recovery. |
 | `tests.test_component_updater` | 8 | PASSED | Independent component updates (yt-dlp, uBlock Origin Lite MV3, Puemos MV3), 24h startup gate, batch updates, atomic staging, and rollback. |
@@ -27,6 +27,6 @@
 | `tests.test_release_authenticity` | 11 | PASSED | OpenPGP detached signature verification, pinned public key matching, and tamper detection. |
 | `tests.test_settings_and_parity` | 7 | PASSED | Font preference, destination modes, component updates, session clearing, and sanitized diagnostics. |
 | `tests.test_uplink_state` | 6 | PASSED | UPLINK status transitions (READY, ACTIVE, QUEUED, COMPLETED). |
-| `tests.test_version_consistency` | 3 | PASSED | Version consistency across `pyproject.toml`, `vrka_downloader.py`, and `vrka_qml/app.py`. |
+| `tests.test_version_consistency` | 6 | PASSED | Version consistency across `pyproject.toml`, `vrka_downloader.py`, `vrka_qml/app.py`, `version_info.txt`, `SettingsPage.qml`, and About display string. |
 | `tests.test_vrka_qml_bridge` | 21 | PASSED | QML bridge event queue draining, activity log ring buffer, and typed signal delivery. |
 | `tests.test_vrka_qml_download` | 12 | PASSED | URL validation, download options normalization, and backend delegation. |

@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Refactored update architecture into GUI-independent `vrka_core/updater_state.py` and `vrka_core/component_updater.py`.
 - Modernized Settings page with batch update trigger ("Check All Updates") and per-component installation controls.
-- Expanded automated regression test suite to 156 tests with 100% pass rate.
+- Expanded automated regression test suite to 163 tests with 100% pass rate.
 
 ---
 

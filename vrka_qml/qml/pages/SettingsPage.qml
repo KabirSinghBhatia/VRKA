@@ -1165,7 +1165,7 @@ ScrollView {
                                     color: Theme.textDim
                                 }
                                 Label {
-                                    text: "4.5.0 (Build 018)"
+                                    text: APP_DISPLAY_VERSION + " (Build " + APP_BUILD + ")"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.bodySize
                                     font.bold: true
@@ -1184,7 +1184,7 @@ ScrollView {
                                     color: Theme.textDim
                                 }
                                 Label {
-                                    text: (typeof Operational !== "undefined" && Operational && Operational.appUpdateLatestVersion !== "") ? ("v" + Operational.appUpdateLatestVersion) : "v4.5.0"
+                                    text: (typeof Operational !== "undefined" && Operational && Operational.appUpdateLatestVersion !== "") ? ("v" + Operational.appUpdateLatestVersion) : "Unknown"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.bodySize
                                     font.bold: true
@@ -1308,7 +1308,7 @@ ScrollView {
                     spacing: 6
 
                     Label {
-                        text: "VRKA v" + APP_DISPLAY_VERSION + ".0"
+                        text: "VRKA v" + APP_DISPLAY_VERSION
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.displayTitleSize
                         font.bold: true
