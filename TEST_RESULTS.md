@@ -4,8 +4,8 @@
 
 | Result | Count |
 | :--- | ---: |
-| Tests | 103 |
-| Passed | 103 |
+| Tests | 143 |
+| Passed | 143 |
 | Failed | 0 |
 | Errors | 0 |
 | Skipped | 0 |
@@ -20,6 +20,7 @@
 | `tests.test_build010_core` | 7 | PASSED | Core download state persistence, FIFO queue ordering, and task state transitions. |
 | `tests.test_build010_scheduler` | 8 | PASSED | Single-worker FIFO task scheduling, process isolation, cancellation, and task recovery. |
 | `tests.test_coverage_model` | 11 | PASSED | Media observation, candidate ranking models, and stream manifest detection coverage. |
+| `tests.test_failure_classifier` | 40 | PASSED | yt-dlp failure classification (flashvars, KVS, client-side player, embedded player, generic parser, Cloudflare, cookies, HTTP blocks), non-recoverable filtering, anti-recursion guards, and end-to-end browser fallback routing. |
 | `tests.test_header_security` | 7 | PASSED | RFC 7230 header validation, CRLF injection prevention, and sensitive header redaction. |
 | `tests.test_quality_ranking` | 5 | PASSED | Multi-factor quality selection (resolution, frame rate, bitrate, codec efficiency), and no arbitrary HDR bonus. |
 | `tests.test_release_authenticity` | 11 | PASSED | OpenPGP detached signature verification, pinned public key matching, and tamper detection. |

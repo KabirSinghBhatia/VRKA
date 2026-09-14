@@ -26,6 +26,13 @@ from .media_assembly import classify as classify_capture_entry
 from .ownership import OwnedProcessRegistry
 from .persistence import TaskStore, TaskStoreError
 from .scheduler import TaskCancelled, TaskExecutionContext, TaskScheduler
+from .failure_classifier import (
+    ClassificationResult,
+    FailureCategory,
+    RecoveryAction,
+    classify_failure,
+    is_browser_recoverable,
+)
 from .tasks import TaskRecord, TaskSpec
 from .ui_adapter import Build008TaskAdapter
 from .watchdog import (
@@ -44,7 +51,8 @@ __all__ = [
     "ActivityPhase", "AutomaticFallbackExecutor", "BrowserContextCancelled",
     "BrowserFallbackCancelled",
     "BrowserFallbackError", "BrowserSelectionRequired", "Build008TaskAdapter", "CandidateKind",
-    "ClassifyCaptureEntry", "ExternalReplayRejected", "MediaBodyCapture",
+    "ClassificationResult", "ClassifyCaptureEntry", "ExternalReplayRejected",
+    "FailureCategory", "MediaBodyCapture", "RecoveryAction",
     "CandidateLifecycle", "CandidateRanker", "CandidateStore", "CoreEvent",
     "DirectPathEligibleForFallback", "DownloadState", "EventBus", "HandoffBundle",
     "JsonFileBrowserEpisode", "MeaningfulActivityWatchdog", "MonitoredProcessRunner",
@@ -52,5 +60,5 @@ __all__ = [
     "ProtectedBrowserFallback", "SubprocessBrowserLauncher", "TaskCancelled",
     "TaskExecutionContext", "TaskRecord", "TaskScheduler", "TaskSpec", "TaskStore",
     "TaskStoreError", "WatchdogPolicy", "assemble_browser_capture",
-    "classify_capture_entry",
+    "classify_capture_entry", "classify_failure", "is_browser_recoverable",
 ]

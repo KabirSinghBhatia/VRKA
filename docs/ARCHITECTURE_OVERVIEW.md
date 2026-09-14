@@ -41,8 +41,9 @@ VRKA is a modular desktop media downloader built with a native **Qt 6 QML** inte
 - **Strict FIFO Queue**: Executes downloads sequentially to maximize throughput, prevent connection contention, and ensure predictable execution.
 - **Durable Persistence**: Maintains task records and states atomically in `%USERPROFILE%\.vrka\tasks.json`.
 
-### 3. Media Extraction Engine (`vrka_downloader.py`)
-- **Direct Extraction**: Manages yt-dlp subprocess execution with structured argument arrays, progress tracking, and format selection.
+### 3. Media Extraction Engine (`vrka_downloader.py`, `vrka_core/failure_classifier.py`)
+- **Direct Extraction & Failure Classification**: Manages yt-dlp subprocess execution with structured argument arrays. When direct extraction encounters player or site protection barriers, a dedicated failure classifier routes recoverable failures (such as flashvars, KVS players, client-side/embedded players, or webpage access blocks) to Browser Fallback. Network, cancellation, local system, FFmpeg, DRM, and post-transfer failures remain strictly terminal.
+- **Single-Attempt Fallback**: Fallback executes at most once per task, preventing recursive retry loops.
 - **Post-Processing**: Coordinates FFmpeg/FFprobe operations for muxing, audio transcoding, and precision video trimming.
 
 ### 4. Passive Browser Fallback (`vrka_core/browser_fallback.py`)

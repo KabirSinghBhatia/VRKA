@@ -8,7 +8,11 @@ This document outlines the current technical boundaries and operational characte
 VRKA uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) for direct media extraction. When streaming sites update their player scripts, APIs, or bot-detection mechanisms, extraction may fail until an updated yt-dlp release is installed. Use **Settings** > **Component Updates** to check for and install updated extractor definitions.
 
 ## Browser-Assisted Media Detection
-When direct extraction encounters protected pages, VRKA opens an isolated WebView2 session with uBlock Origin Lite content filtering. While this automatically detects HLS master manifests, DASH streams, and direct media URLs on most sites, some complex interactive players may require the user to start playback manually before streams become detectable.
+VRKA can continue with Browser Fallback when yt-dlp cannot directly extract media but the failure indicates that browser execution may recover the media (such as flashvars, KVS players, client-side or embedded players, generic stream extraction failures, bot challenges, or webpage-level access blocks).
+
+Network, cancellation, local system, FFmpeg, DRM, and post-transfer failures remain terminal. Browser fallback is attempted at most once for a task.
+
+When browser fallback is active, VRKA opens an isolated WebView2 session with uBlock Origin Lite content filtering. While this automatically detects HLS master manifests, DASH streams, and direct media URLs on most sites, some complex interactive players may require the user to start playback manually before streams become detectable.
 
 ## Digital Rights Management (DRM)
 VRKA does not circumvent or decrypt DRM-protected streams (such as Widevine, FairPlay, or PlayReady). If encrypted media segments or license challenge handshakes are detected, extraction stops immediately with an explanatory message.

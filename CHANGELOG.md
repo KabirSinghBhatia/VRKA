@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed UPLINK status transitions between ready, active, and queued states.
 - Fixed asynchronous subsystem startup to ensure instant window display.
 - Fixed version consistency across project configuration, code, and documentation.
+- Fixed yt-dlp failure classification to route recoverable extraction failures (flashvars, KVS, client-side/embedded players, generic stream parsing, bot challenges, webpage HTTP blocks) to Browser Fallback while keeping network, cancellation, local system, FFmpeg, DRM, and post-transfer failures terminal.
+- Added anti-recursion protection to guarantee browser fallback executes at most once per task.
 
 ### Security
 - Enforced strict RFC 7230 token validation and CRLF injection prevention for HTTP headers.

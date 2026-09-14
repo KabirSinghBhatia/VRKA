@@ -62,13 +62,18 @@ from vrka_core import (
     Build008TaskAdapter,
     BrowserContextCancelled,
     BrowserFallbackError,
+    ClassificationResult,
     DirectPathEligibleForFallback,
     ExternalReplayRejected,
+    FailureCategory,
     MonitoredProcessRunner,
     ProcessCancelled,
     ProtectedBrowserFallback,
+    RecoveryAction,
     SubprocessBrowserLauncher,
     TaskCancelled,
+    classify_failure,
+    is_browser_recoverable,
 )
 
 APP_NAME = "VRKA"
@@ -1801,11 +1806,17 @@ def _protected_browser_request(url, record=None):
 def should_offer_browser_verification(options, category):
     """Offer a fresh browser session when a cached verified candidate is stale."""
     options = options or {}
+    recoverable_categories = {
+        "cloudflare", "cookies", "unsupported", "flashvars", "kvs_player",
+        "player_extraction", "client_side_player", "embedded_player",
+        "generic_parser", "page_unsupported",
+    }
     if options.get("cookie_mode") != "session":
-        return category in ("cloudflare", "cookies", "unsupported")
+        return category in recoverable_categories
     return bool(options.get("session_media_candidates")) and category in (
-        "cloudflare", "cookies", "expired", "http", "unknown", "unsupported",
+        recoverable_categories | {"expired", "http", "unknown"}
     )
+
 
 
 def classify_browser_request(record):
@@ -3784,168 +3795,44 @@ def control_value(owner, attribute, default=None):
 
 
 class YTDLPCommandError(Exception):
-    def __init__(self, message, category="unknown", output="", prior_categories=()):
+    def __init__(self, message, category="unknown", output="", prior_categories=(), reason=""):
         super().__init__(message)
         self.category = category
         self.output = output
         self.prior_categories = tuple(prior_categories or ())
+        self.reason = reason or category
 
 
 BROWSER_RECOVERABLE_DIRECT_CATEGORIES = frozenset({
     "cloudflare", "cookies", "expired", "http",
+    "flashvars", "kvs_player", "player_extraction",
+    "client_side_player", "embedded_player", "generic_parser", "page_unsupported",
 })
 
 
-TERMINAL_DIRECT_CATEGORIES = frozenset({"drm", "impersonation"})
-
-
-_GENERIC_EXTRACTOR_FETCH_MARKERS = (
-    "falling back on generic information extractor",
-    "downloading webpage",
-    "extracting information",
-)
-
-
-def _unsupported_failure_fetched_a_page(exc):
-    """True when an Unsupported-URL failure still fetched a real page.
-
-    yt-dlp reports ``ERROR: Unsupported URL`` both for genuinely invalid
-    input and for real JS-driven pages whose media the generic extractor
-    cannot read - the latter is exactly the browser-fallback case.  The
-    generic extractor visibly fetched/parsed the page in that case
-    (``Falling back on generic information extractor``, ``Downloading
-    webpage``, ``Extracting information``); without that evidence the
-    failure stays terminal.
-    """
-    output = str(getattr(exc, "output", "") or "").lower()
-    return any(marker in output for marker in _GENERIC_EXTRACTOR_FETCH_MARKERS)
-
-
-_TRANSFER_STARTED_MARKERS = ("__vrka_title__", "[download] destination:")
-
-
-def _transfer_failure_after_resolution(exc):
-    """True when the direct run already resolved the media and began a real
-    transfer before failing.
-
-    The standard command prints ``before_dl:__VRKA_TITLE__...`` (and/or
-    ``[download] Destination:``) the moment yt-dlp resolves the media and
-    starts the actual download.  A failure that follows that marker is a
-    post-extraction transfer failure (e.g. the media CDN returns HTTP 403
-    for a YouTube video that was already resolved), NOT a page-access
-    failure: it must never automatically route the task to Browser Fallback
-    merely because it is enabled.  Direct controls (YouTube/X/Instagram)
-    stay on the direct path and recover with their own retry rules.
-    """
-    output = str(getattr(exc, "output", "") or "").lower()
-    return any(marker in output for marker in _TRANSFER_STARTED_MARKERS)
+TERMINAL_DIRECT_CATEGORIES = frozenset({
+    "drm", "impersonation", "cancellation", "post_transfer", "ffmpeg",
+    "local_storage", "permission", "missing_runtime", "dns", "connection",
+    "tls", "authentication", "invalid_configuration",
+})
 
 
 def direct_failure_is_browser_recoverable(exc):
-    """True when a fast direct-path failure can be recovered by Browser Fallback.
-
-    A failure after the requested media was resolved and a real transfer
-    began is never a page-access failure and never fallback-eligible.
-    """
-    if _transfer_failure_after_resolution(exc):
-        return False
-    """True when a fast direct-path failure can be recovered by Browser Fallback.
-
-    Generic recovery classification: categories that prove the URL is a real,
-    browser-reachable page (Cloudflare challenge, cookie wall, HTTP-level
-    rejection, expired media address) are eligible.  ``unsupported`` is
-    eligible when the same attempt chain saw a browser-relevant first error
-    (e.g. HTTP 403 then ``Unsupported URL`` after the impersonation retry) OR
-    when the generic extractor visibly fetched the page before giving up (a
-    JS-driven page that returned HTTP 200 but has no extractable media).  A
-    bare ``Unsupported URL`` with no fetch evidence - genuinely invalid input
-    - stays terminal, as do ``drm`` and impersonation-mechanism failures.
-    """
-    category = getattr(exc, "category", "unknown")
-    if category in TERMINAL_DIRECT_CATEGORIES:
-        return False
-    if category in BROWSER_RECOVERABLE_DIRECT_CATEGORIES:
-        return True
-    if category == "unsupported" and _unsupported_failure_fetched_a_page(exc):
-        return True
-    prior = tuple(getattr(exc, "prior_categories", ()) or ())
-    return bool(prior) and any(
-        item in BROWSER_RECOVERABLE_DIRECT_CATEGORIES for item in prior
-    )
+    """True when a fast direct-path failure can be recovered by Browser Fallback."""
+    return is_browser_recoverable(exc)
 
 
 def classify_download_error(message):
-    """Classify common site failures without claiming more than the log proves."""
-    text = str(message or "")
-    lowered = text.lower()
-    rules = (
-        ("drm", ("drm protected", "protected by drm", "digital rights management")),
-        ("cloudflare", ("cloudflare", "cf-chl-", "just a moment...", "attention required")),
-        ("impersonation", ("impersonate", "curl_cffi", "unsupported impersonation target")),
-        (
-            "cookies",
-            (
-                "cookies-from-browser",
-                "sign in to confirm",
-                "login required",
-                "could not find chrome",
-                "could not find edge",
-                "could not find firefox",
-                "could not find brave",
-                "could not copy chrome cookie database",
-                "could not copy edge cookie database",
-                "could not copy firefox cookie database",
-                "could not copy brave cookie database",
-                "database is locked",
-                "failed to decrypt",
-                "cookie decryption",
-                "browser must be closed",
-                "no useful cookies",
-                "no cookies",
-            ),
-        ),
-        ("expired", ("url has expired", "expired url", "signature has expired")),
-        ("timeout", ("timed out", "timeout", "read operation timed out")),
-        ("unsupported", ("unsupported url", "no suitable extractor", "not a valid url")),
-        (
-            "http",
-            (
-                "http error",
-                "403 forbidden",
-                "unable to download webpage",
-                "connection reset",
-            ),
-        ),
-    )
-    for category, needles in rules:
-        if any(needle in lowered for needle in needles):
-            return category
-    return "unknown"
+    """Classify common site failures using the structured failure classifier."""
+    result = classify_failure(str(message or ""))
+    return result.category.value
 
 
 def format_download_error(message):
-    category = classify_download_error(message)
-    guidance = {
-        "drm": (
-            "This media appears to be DRM-protected. VRKA will not bypass DRM; "
-            "use a lawful non-DRM source."
-        ),
-        "cloudflare": (
-            "The site returned a Cloudflare verification response. Browser "
-            "impersonation, cookies, or the on-demand verification window may help."
-        ),
-        "impersonation": (
-            "The selected browser impersonation target is unavailable in this yt-dlp build."
-        ),
-        "cookies": (
-            "The site appears to require an authenticated browser session or valid cookies."
-        ),
-        "expired": "The media address appears to have expired. Refresh the page and try again.",
-        "timeout": "The site did not respond in time. Check the connection and try again.",
-        "unsupported": "This address is not supported by the active yt-dlp build.",
-        "http": "The website rejected or interrupted the request.",
-    }
-    return category, guidance.get(category, str(message))
+    """Format an error message and category using the structured failure classifier."""
+    result = classify_failure(str(message or ""))
+    return result.category.value, result.friendly_message
+
 
 
 def probe_failure_overridden_by_browser_observation(bundle, category):
@@ -5189,18 +5076,18 @@ class VRKADownloader:
             return self._run_standard_task(task, output_folder, context.cancel_event)
         except YTDLPCommandError as exc:
             # A fast direct-path failure in a browser-recoverable category
-            # (Cloudflare challenge, cookie wall, HTTP rejection, expired
-            # address, or an extractor-level failure that followed such a
-            # first error) continues on the SAME task through the automatic
-            # protected-browser fallback.  Genuinely invalid/unrecoverable
-            # input (bare "Unsupported URL", DRM, impersonation mechanism
-            # errors) stays terminal.
+            # continues on the SAME task through the automatic
+            # protected-browser fallback. Genuinely invalid/unrecoverable
+            # input stays terminal.
             if not direct_failure_is_browser_recoverable(exc):
                 raise
+            reason = getattr(exc, "reason", "") or exc.category
             raise DirectPathEligibleForFallback(
-                f"Direct extraction failed ({exc.category}); Browser Fallback eligible",
+                f"Direct extraction failed ({exc.category}: {reason}); Browser Fallback eligible",
                 category=exc.category,
+                reason=reason,
             ) from exc
+
 
     @staticmethod
     def _clear_resolved_handoff_options(task):
@@ -5661,12 +5548,17 @@ class VRKADownloader:
                         episode, task, output_folder, bundle, active_context)),
                 interaction_wait_seconds=120.0,
             )
+            def _browser_fallback_wrapped(active_record, active_context):
+                task.options["_browser_fallback_attempted"] = True
+                return browser(active_record, active_context)
+
             AutomaticFallbackExecutor(
                 direct,
-                browser,
+                _browser_fallback_wrapped,
                 enabled=lambda current: (
                     current.spec.mode != "custom"
                     and bool(current.spec.options.get("browser_fallback_enabled", True))
+                    and not bool(task.options.get("_browser_fallback_attempted", False))
                 ),
             )(record, context)
             self._await_protected_browser_transfer(task, context)
@@ -6004,8 +5896,16 @@ class VRKADownloader:
             raise DownloadCanceled()
         if result.returncode != 0:
             output = "\n".join(output_tail or result.output_tail)
-            category, friendly = format_download_error(output or f"Exit code {result.returncode}")
-            raise YTDLPCommandError(friendly, category=category, output=output)
+            classification = classify_failure(
+                output or f"Exit code {result.returncode}",
+                stage=getattr(task, "stage", ""),
+            )
+            raise YTDLPCommandError(
+                classification.friendly_message,
+                category=classification.category.value,
+                output=output,
+                reason=classification.reason,
+            )
     def _run_standard_subprocess_task(self, task, output_folder, cancel_event):
         opts = task.options
         if opts.get("session_drm_detected"):
@@ -6086,8 +5986,11 @@ class VRKADownloader:
                 candidates = opts.get("session_media_candidates") or []
                 if (
                     candidates
-                    and recovery_error.category
-                    in ("cloudflare", "http", "unsupported", "expired", "unknown")
+                    and (
+                        recovery_error.category
+                        in ("cloudflare", "http", "unsupported", "expired", "unknown")
+                        or is_browser_recoverable(recovery_error)
+                    )
                 ):
                     for candidate in candidates[:3]:
                         candidate_url = media_candidate_url(candidate)

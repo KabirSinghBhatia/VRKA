@@ -69,7 +69,7 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 - **Advanced Network & Custom Headers**: Strict RFC 7230 header validation, CRLF injection rejection, and automatic secret scrubbing from logs.
 - **Secure In-App Updates**: Direct in-app application and component updates with SHA-256 verification and rollback support.
 - **Durable Task Queue**: Sequential single-worker FIFO queue with persistent state storage across application restarts.
-- **Passive Browser Fallback**: Isolated WebView2 session with uBlock Origin Lite protection for sites requiring browser observation, and one-click session clearing.
+- **Intelligent Browser Fallback**: When direct yt-dlp extraction cannot resolve media but indicates that browser execution may recover it, VRKA continues via an isolated WebView2 session with uBlock Origin Lite protection. Fallback is attempted at most once per task; network, cancellation, local system, FFmpeg, DRM, and post-transfer failures remain terminal.
 - **Sanitized Diagnostics**: Export redacted diagnostic reports for troubleshooting without leaking credentials or private session data.
 
 ---

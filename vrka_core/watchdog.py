@@ -69,9 +69,10 @@ class DirectPathEligibleForFallback(Exception):
     taxonomy label for logging only.
     """
 
-    def __init__(self, message: str, *, category: str = "unknown"):
+    def __init__(self, message: str, *, category: str = "unknown", reason: str = ""):
         super().__init__(message)
         self.category = category
+        self.reason = reason or category
 
 
 class MeaningfulActivityWatchdog:
@@ -310,12 +311,13 @@ class AutomaticFallbackExecutor:
         self._direct_attempt = direct_attempt
         self._browser_fallback = browser_fallback
         self._enabled = enabled or self._option_enabled
+        self._fallback_attempted = False
 
     def __call__(self, record, context) -> None:
         try:
             self._direct_attempt(record, context)
         except ProcessInactivity as stalled:
-            if not stalled.eligible_for_fallback or not self._enabled(record):
+            if not stalled.eligible_for_fallback or not self._enabled(record) or self._fallback_attempted:
                 raise
             self._start_fallback(
                 record, context,
@@ -323,17 +325,21 @@ class AutomaticFallbackExecutor:
                 transition_message="Direct extraction inactive; Browser Fallback eligible",
             )
         except DirectPathEligibleForFallback as eligible:
-            if not self._enabled(record):
+            if not self._enabled(record) or self._fallback_attempted:
                 raise
+            reason_str = f": {eligible.reason}" if getattr(eligible, "reason", None) and eligible.reason != eligible.category else ""
             self._start_fallback(
                 record, context,
-                log_message=(f"Direct extraction failed ({eligible.category}); "
+                log_message=(f"Direct extraction failed ({eligible.category}{reason_str}); "
                              "continuing this task in Browser Fallback."),
                 transition_message="Direct extraction failed; Browser Fallback eligible",
             )
 
     def _start_fallback(self, record, context, *, log_message: str,
                         transition_message: str) -> None:
+        if self._fallback_attempted:
+            return
+        self._fallback_attempted = True
         context.log(log_message)
         context.transition(
             DownloadState.DIRECT_FAILED_ELIGIBLE_FOR_FALLBACK,
