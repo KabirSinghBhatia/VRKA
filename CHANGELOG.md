@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.3] - 2026-09-14 (Build 021)
+
+### Changed
+- **Application Updater Threading**: Improved GUI dispatch architecture using thread-safe Qt queued signal delivery for background worker tasks.
+- **Component State Synchronization**: Hardened state transitions to ensure component snapshots and status indicators update reliably after background operations.
+
+### Fixed
+- Fixed application update check failure caused by accessing an incorrect attribute on the update state object.
+- Fixed the "Check All Updates" operation remaining stuck in the "Checking All..." state after background checks completed.
+- Fixed a potential crash when copying sanitized operational diagnostics in non-GUI testing environments.
+- Ensured the "Check All Updates" busy state is unconditionally cleared on completion, error, or exception, allowing subsequent checks to run normally.
+
+---
+
 ## [4.5.2] - 2026-09-14 (Build 020)
 
 ### Added

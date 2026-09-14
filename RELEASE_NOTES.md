@@ -1,3 +1,19 @@
+# VRKA 4.5.3
+
+Build 021
+
+## Highlights
+- **Application Updater Reliability**: Fixed attribute handling during in-app update checks, ensuring smooth transition when detecting new application releases.
+- **Thread-Safe GUI Dispatch**: Re-architected worker thread event delivery to use Qt queued signal connections, eliminating timer-loss and frozen UI button states.
+- **Reliable Check All Operation**: Guaranteed that manual "Check All Updates" operations always clear busy state indicators upon completion, error, or network exception.
+- **Sanitized Diagnostics Safety**: Hardened clipboard operations during diagnostics export to prevent aborts in headless or automated environments.
+- **Responsive Settings Maintenance**: Preserved adaptive layout, card scaling, and full vertical scrolling on small screens.
+
+## Security
+- Release packages are cryptographically signed and verified using SHA-256 digests and OpenPGP detached signatures.
+
+---
+
 # VRKA 4.5.2
 
 Build 020

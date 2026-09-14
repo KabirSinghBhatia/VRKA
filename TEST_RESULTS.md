@@ -1,11 +1,11 @@
-# VRKA 4.5.2 Build 020 Test Results
+# VRKA 4.5.3 Build 021 Test Results
 
 ## Summary
 
 | Result | Count |
 | :--- | ---: |
-| Tests | 177 |
-| Passed | 177 |
+| Tests | 192 |
+| Passed | 192 |
 | Failed | 0 |
 | Errors | 0 |
 | Skipped | 0 |
@@ -16,6 +16,7 @@
 
 | Suite Module | Tests | Status | Scope |
 | :--- | :---: | :---: | :--- |
+| `tests.test_operational_controller` | 15 | PASSED | AppUpdateInfo.is_newer semver interface, downgrade rejection, thread-safe Qt queued signal/slot GUI dispatch, Check All / Update All batch state cleanup on success, error, and exception, and repeat execution. |
 | `tests.test_app_updater` | 14 | PASSED | SemanticVersion parsing, downgrade rejection, redirect allowlisting, hop limits, package SHA-256 verification, concurrency locking, fail-closed staging cleanup, and update state persistence without NameError. |
 | `tests.test_batch_updater` | 3 | PASSED | BatchUpdater concurrency lock, single and multi-component updating, partial failure reporting, and false global success prevention. |
 | `tests.test_build010_core` | 7 | PASSED | Core download state persistence, FIFO queue ordering, and task state transitions. |

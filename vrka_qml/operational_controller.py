@@ -1,4 +1,4 @@
-"""Operational integration for VRKA 4.5.2: Browser fallback, MediaObserver, yt-dlp updater,
+"""Operational integration for VRKA 4.5.3: Browser fallback, MediaObserver, yt-dlp updater,
 uBlock Origin Lite updater, Puemos updater, 24-hour startup check, Application self-updater,
 browser session clearing, and sanitized diagnostics.
 """
@@ -989,7 +989,7 @@ class OperationalController(QObject):
 
         def _worker():
             try:
-                curr_ver = str(getattr(app, "APP_DISPLAY_VERSION", getattr(app, "APP_VERSION", "4.5.2")))
+                curr_ver = str(getattr(app, "APP_DISPLAY_VERSION", getattr(app, "APP_VERSION", "4.5.3")))
                 info = check_for_application_update(curr_ver, store=self._store)
                 self._dispatch_to_gui(lambda inf=info, cv=curr_ver: self._on_app_update_finished(inf, cv))
             except Exception as exc:

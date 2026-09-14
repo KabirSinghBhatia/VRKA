@@ -4,7 +4,7 @@ This document outlines current capabilities and planned future directions for VR
 
 ---
 
-## Current Release (v4.5.2 Build 020)
+## Current Release (v4.5.3 Build 021)
 - Modern Qt 6 QML desktop interface with custom Windows title bar, floating sidebar, and dark/light themes.
 - Typography preference supporting Monospace and System Default.
 - Configurable download destination behavior (Remember Location vs Ask Every Time).

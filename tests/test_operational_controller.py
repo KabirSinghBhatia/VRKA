@@ -35,14 +35,14 @@ class AppUpdateInfoInterfaceTests(unittest.TestCase):
 
     def test_app_update_info_semver_comparison(self):
         """AppUpdateInfo.is_newer must accurately reflect semantic comparison."""
-        # 4.5.1 -> 4.5.2: update is available
+        # 4.5.2 -> 4.5.3: update is available
         info_newer = AppUpdateInfo(
-            current_version="4.5.1",
-            latest_version="4.5.2",
-            tag_name="v4.5.2",
+            current_version="4.5.2",
+            latest_version="4.5.3",
+            tag_name="v4.5.3",
             release_notes="",
             published_at="",
-            asset_name="VRKA-4.5.2-Build-020-Setup.exe",
+            asset_name="VRKA-4.5.3-Build-021-Setup.exe",
             asset_download_url="",
             sha256_manifest_url="",
             signature_url="",
@@ -50,14 +50,14 @@ class AppUpdateInfoInterfaceTests(unittest.TestCase):
         )
         self.assertTrue(info_newer.is_newer)
 
-        # 4.5.2 -> 4.5.2: up to date
+        # 4.5.3 -> 4.5.3: up to date
         info_same = AppUpdateInfo(
-            current_version="4.5.2",
-            latest_version="4.5.2",
-            tag_name="v4.5.2",
+            current_version="4.5.3",
+            latest_version="4.5.3",
+            tag_name="v4.5.3",
             release_notes="",
             published_at="",
-            asset_name="VRKA-4.5.2-Build-020-Setup.exe",
+            asset_name="VRKA-4.5.3-Build-021-Setup.exe",
             asset_download_url="",
             sha256_manifest_url="",
             signature_url="",
@@ -65,14 +65,14 @@ class AppUpdateInfoInterfaceTests(unittest.TestCase):
         )
         self.assertFalse(info_same.is_newer)
 
-        # 4.5.3 -> 4.5.2: downgrade rejection
+        # 4.5.4 -> 4.5.3: downgrade rejection
         info_older = AppUpdateInfo(
-            current_version="4.5.3",
-            latest_version="4.5.2",
-            tag_name="v4.5.2",
+            current_version="4.5.4",
+            latest_version="4.5.3",
+            tag_name="v4.5.3",
             release_notes="",
             published_at="",
-            asset_name="VRKA-4.5.2-Build-020-Setup.exe",
+            asset_name="VRKA-4.5.3-Build-021-Setup.exe",
             asset_download_url="",
             sha256_manifest_url="",
             signature_url="",
@@ -83,9 +83,9 @@ class AppUpdateInfoInterfaceTests(unittest.TestCase):
     def test_app_update_info_has_no_update_available_attribute(self):
         """AppUpdateInfo dataclass defines is_newer; accessing update_available must fail."""
         info = AppUpdateInfo(
-            current_version="4.5.2",
-            latest_version="4.5.2",
-            tag_name="v4.5.2",
+            current_version="4.5.3",
+            latest_version="4.5.3",
+            tag_name="v4.5.3",
             release_notes="",
             published_at="",
             asset_name="Setup.exe",
@@ -100,12 +100,12 @@ class AppUpdateInfoInterfaceTests(unittest.TestCase):
             _ = info.update_available
 
     def test_operational_controller_check_app_update_up_to_date(self):
-        """Controller uses info.is_newer and sets 'VRKA 4.5.2 is up to date (latest v4.5.2).' without exception."""
+        """Controller uses info.is_newer and sets 'VRKA 4.5.3 is up to date (latest v4.5.3).' without exception."""
         op_ctrl = OperationalController(self.mock_host, self.mock_bridge, self.settings)
         info_same = AppUpdateInfo(
-            current_version="4.5.2",
-            latest_version="4.5.2",
-            tag_name="v4.5.2",
+            current_version="4.5.3",
+            latest_version="4.5.3",
+            tag_name="v4.5.3",
             release_notes="",
             published_at="",
             asset_name="Setup.exe",
@@ -122,17 +122,17 @@ class AppUpdateInfoInterfaceTests(unittest.TestCase):
 
             self.assertFalse(op_ctrl.appUpdateBusy)
             self.assertFalse(op_ctrl.appUpdateAvailable)
-            self.assertEqual(op_ctrl.appUpdateLatestVersion, "4.5.2")
-            self.assertEqual(op_ctrl.appUpdateStatusText, "VRKA 4.5.2 is up to date (latest v4.5.2).")
+            self.assertEqual(op_ctrl.appUpdateLatestVersion, "4.5.3")
+            self.assertEqual(op_ctrl.appUpdateStatusText, "VRKA 4.5.3 is up to date (latest v4.5.3).")
 
     def test_operational_controller_check_app_update_newer(self):
-        """Controller uses info.is_newer to detect newer version v4.5.2 when running 4.5.1."""
+        """Controller uses info.is_newer to detect newer version v4.5.3 when running 4.5.2."""
         op_ctrl = OperationalController(self.mock_host, self.mock_bridge, self.settings)
         info_newer = AppUpdateInfo(
-            current_version="4.5.1",
-            latest_version="4.5.2",
-            tag_name="v4.5.2",
-            release_notes="Important fixes",
+            current_version="4.5.2",
+            latest_version="4.5.3",
+            tag_name="v4.5.3",
+            release_notes="Maintenance release",
             published_at="2026-09-14",
             asset_name="Setup.exe",
             asset_download_url="https://example.com/Setup.exe",
@@ -148,9 +148,9 @@ class AppUpdateInfoInterfaceTests(unittest.TestCase):
 
             self.assertFalse(op_ctrl.appUpdateBusy)
             self.assertTrue(op_ctrl.appUpdateAvailable)
-            self.assertEqual(op_ctrl.appUpdateLatestVersion, "4.5.2")
-            self.assertEqual(op_ctrl.appUpdateReleaseNotes, "Important fixes")
-            self.assertEqual(op_ctrl.appUpdateStatusText, "New application update available: v4.5.2")
+            self.assertEqual(op_ctrl.appUpdateLatestVersion, "4.5.3")
+            self.assertEqual(op_ctrl.appUpdateReleaseNotes, "Maintenance release")
+            self.assertEqual(op_ctrl.appUpdateStatusText, "New application update available: v4.5.3")
 
     def test_operational_controller_check_app_update_error(self):
         """Controller clears busy state and sets error status if check_for_application_update raises."""

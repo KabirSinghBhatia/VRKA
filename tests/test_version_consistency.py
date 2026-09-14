@@ -31,19 +31,19 @@ class VersionConsistencyTests(unittest.TestCase):
 
     def test_app_py_version_constants(self):
         from vrka_qml.app import APP_DISPLAY_VERSION, APP_BUILD
-        self.assertEqual(APP_DISPLAY_VERSION, "4.5.2")
-        self.assertEqual(APP_BUILD, "020")
+        self.assertEqual(APP_DISPLAY_VERSION, "4.5.3")
+        self.assertEqual(APP_BUILD, "021")
 
     def test_vrka_downloader_version_constants(self):
         import vrka_downloader as vd
-        self.assertEqual(vd.APP_DISPLAY_VERSION, "4.5.2")
-        self.assertEqual(vd.APP_BUILD, "020")
-        self.assertEqual(vd.APP_VERSION, "4.5.2")
+        self.assertEqual(vd.APP_DISPLAY_VERSION, "4.5.3")
+        self.assertEqual(vd.APP_BUILD, "021")
+        self.assertEqual(vd.APP_VERSION, "4.5.3")
 
     def test_about_version_display_string(self):
         from vrka_qml.app import APP_DISPLAY_VERSION
         about_str = "VRKA v" + APP_DISPLAY_VERSION
-        self.assertEqual(about_str, "VRKA v4.5.2")
+        self.assertEqual(about_str, "VRKA v4.5.3")
 
     def test_qml_settings_page_no_stale_version_literals(self):
         settings_qml = self.repo_root / "vrka_qml" / "qml" / "pages" / "SettingsPage.qml"
@@ -53,9 +53,13 @@ class VersionConsistencyTests(unittest.TestCase):
         # Stale literals must NOT exist
         self.assertNotIn("4.5.0 (Build 018)", content)
         self.assertNotIn("4.5.1 (Build 019)", content)
+        self.assertNotIn("4.5.2 (Build 020)", content)
         self.assertNotIn("Build 018", content)
         self.assertNotIn("Build 019", content)
+        self.assertNotIn("Build 020", content)
         self.assertNotIn("v4.5.0", content)
+        self.assertNotIn("v4.5.1", content)
+        self.assertNotIn("v4.5.2", content)
         self.assertNotIn('APP_DISPLAY_VERSION + ".0"', content)
 
         # Authoritative bindings MUST exist
@@ -67,10 +71,10 @@ class VersionConsistencyTests(unittest.TestCase):
         version_info = self.repo_root / "version_info.txt"
         self.assertTrue(version_info.exists(), "version_info.txt missing")
         content = version_info.read_text(encoding="utf-8")
-        self.assertIn("filevers=(4, 5, 2, 20)", content)
-        self.assertIn("prodvers=(4, 5, 2, 20)", content)
-        self.assertIn("'FileVersion', '4.5.2.20'", content)
-        self.assertIn("'ProductVersion', '4.5.2'", content)
+        self.assertIn("filevers=(4, 5, 3, 21)", content)
+        self.assertIn("prodvers=(4, 5, 3, 21)", content)
+        self.assertIn("'FileVersion', '4.5.3.21'", content)
+        self.assertIn("'ProductVersion', '4.5.3'", content)
 
 
 if __name__ == "__main__":

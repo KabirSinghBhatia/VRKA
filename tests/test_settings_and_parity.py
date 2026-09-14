@@ -54,7 +54,7 @@ class SettingsAndParityTests(unittest.TestCase):
         op_ctrl = OperationalController(self.mock_host, self.mock_bridge, settings)
         diagnostics = op_ctrl.exportSanitizedDiagnostics()
 
-        self.assertIn("VRKA 4.5.2 OPERATIONAL DIAGNOSTICS", diagnostics)
+        self.assertIn("VRKA 4.5.3 OPERATIONAL DIAGNOSTICS", diagnostics)
         self.assertNotIn("SECRET_VAL_123", diagnostics)
         self.assertIn("[REDACTED]", diagnostics)
 

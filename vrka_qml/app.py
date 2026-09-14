@@ -24,9 +24,9 @@ from .operational_controller import OperationalController
 from .queue_controller import QueueController
 from .settings_state import SettingsState
 
-# Authoritative VRKA 4.5.2 application identity
-APP_DISPLAY_VERSION = "4.5.2"
-APP_BUILD = "020"
+# Authoritative VRKA 4.5.3 application identity
+APP_DISPLAY_VERSION = "4.5.3"
+APP_BUILD = "021"
 
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     PROJECT_ROOT = Path(sys._MEIPASS)
