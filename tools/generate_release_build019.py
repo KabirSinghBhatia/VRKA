@@ -156,29 +156,30 @@ def run_test_suite() -> tuple[int, str]:
     return count, out
 
 
-def generate_release_package(source_only: bool = False) -> None:
+def generate_release_package(source_only: bool = False, preserve_packages: bool = False) -> None:
     print("=" * 70)
     print("VRKA 4.5.1 BUILD 019 — AUTHORITATIVE RELEASE PACKAGING PIPELINE")
     print("=" * 70)
 
     # 1. Clean and initialize build-specific directory
-    if not source_only:
+    if not source_only and not preserve_packages:
         if RELEASE_DIR.exists():
             print(f">> Cleaning existing build directory: {RELEASE_DIR}")
             shutil.rmtree(RELEASE_DIR)
     RELEASE_DIR.mkdir(parents=True, exist_ok=True)
     print(f"[OK] Target release directory initialized: {RELEASE_DIR}")
 
-    # 2. Run Test Suite
-    print("\n>> Running full regression & feature test suite...")
-    test_count, test_output = run_test_suite()
-    print(f"[OK] All {test_count} tests PASSED.")
-
     dest_portable_exe = RELEASE_DIR / FN_PORTABLE_EXE
     dest_portable_zip = RELEASE_DIR / FN_PORTABLE_ZIP
     setup_exe = RELEASE_DIR / FN_SETUP_EXE
+    dest_source_zip = RELEASE_DIR / FN_SOURCE_ZIP
 
-    if not source_only:
+    if preserve_packages:
+        print("[INFO] Preserving existing package binaries and source archive.")
+        for pkg in [dest_portable_exe, dest_portable_zip, setup_exe, dest_source_zip]:
+            if not pkg.is_file():
+                raise FileNotFoundError(f"Cannot preserve packages: Missing required package {pkg}")
+    elif not source_only:
         # 3. Build/Stage PyInstaller Binary
         dist_exe = build_pyinstaller_binary()
 
@@ -205,20 +206,24 @@ def generate_release_package(source_only: bool = False) -> None:
         # C. Inno Setup Installer
         iss_file = PROJECT_ROOT / "VRKA-4.0.iss"
         setup_exe = compile_inno_setup(iss_file)
+
+        # D. Source ZIP
+        create_source_zip(dest_source_zip)
+        print(f"[OK] Created {FN_SOURCE_ZIP} ({dest_source_zip.stat().st_size:,} bytes)")
     else:
         print("[INFO] Re-packaging Source.zip only; preserving existing binary artifacts.")
         if not dest_portable_exe.exists() or not dest_portable_zip.exists():
             raise FileNotFoundError("Existing binary artifacts missing from release directory")
-
-    # D. Source ZIP
-    dest_source_zip = RELEASE_DIR / FN_SOURCE_ZIP
-    create_source_zip(dest_source_zip)
-    print(f"[OK] Created {FN_SOURCE_ZIP} ({dest_source_zip.stat().st_size:,} bytes)")
+        # D. Source ZIP
+        create_source_zip(dest_source_zip)
+        print(f"[OK] Created {FN_SOURCE_ZIP} ({dest_source_zip.stat().st_size:,} bytes)")
 
     # 5. Calculate SHA256 Checksums
-    artifact_files = [dest_portable_exe, dest_portable_zip, dest_source_zip]
+    artifact_files = [dest_portable_exe, dest_portable_zip]
     if setup_exe and setup_exe.exists():
-        artifact_files.insert(2, setup_exe)
+        artifact_files.append(setup_exe)
+    if dest_source_zip and dest_source_zip.exists():
+        artifact_files.append(dest_source_zip)
 
     checksum_lines = []
     artifacts_metadata = []
@@ -233,41 +238,18 @@ def generate_release_package(source_only: bool = False) -> None:
             "sha256": sha,
         })
 
+    # Strict LF enforcement: no carriage returns (\r)
     sha256sums_content = "\n".join(checksum_lines) + "\n"
+    sha256sums_content = sha256sums_content.replace("\r\n", "\n").replace("\r", "\n")
+    sha256_bytes = sha256sums_content.encode("ascii")
+    if b"\r" in sha256_bytes:
+        raise ValueError("Security defect: Carriage return (CR) detected in sha256sums bytes!")
+
     sha256_path = RELEASE_DIR / FN_SHA256SUMS
-    sha256_path.write_text(sha256sums_content, encoding="ascii")
-    print(f"[OK] Created {FN_SHA256SUMS}")
+    sha256_path.write_bytes(sha256_bytes)
+    print(f"[OK] Created {FN_SHA256SUMS} ({len(sha256_bytes)} bytes, LF only)")
 
-    # 6. Generate RELEASE-MANIFEST.json
-    git_commit, git_branch = get_git_info()
-    manifest_data = {
-        "$schema": "https://vrka.org/schemas/release-manifest-v1.json",
-        "application": "VRKA",
-        "version": "4.5.1",
-        "display_version": "4.5.1",
-        "build_number": "019",
-        "target_platform": "Windows x64",
-        "minimum_os": "Windows 10 Version 1809 (Build 17763)",
-        "git_commit": git_commit,
-        "git_branch": git_branch,
-        "build_timestamp": datetime.now(timezone.utc).isoformat(),
-        "signer_key_id": TRUSTED_VRKA_RELEASE_KEY_ID,
-        "signer_fingerprint": TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT,
-        "artifacts": artifacts_metadata,
-        "toolchain": {
-            "python": platform.python_version(),
-            "pyside6": "6.11.2",
-            "pyinstaller": "6.21.0",
-            "pgpy": "0.6.0",
-            "os": f"{platform.system()} {platform.release()} ({platform.machine()})",
-        },
-    }
-    manifest_path = RELEASE_DIR / FN_MANIFEST_JSON
-    manifest_text = json.dumps(manifest_data, indent=2) + "\n"
-    manifest_path.write_text(manifest_text, encoding="utf-8")
-    print(f"[OK] Created {FN_MANIFEST_JSON}")
-
-    # 7. Load Persistent Release Signing Key & Sign Manifests
+    # 6. Load Persistent Release Signing Key
     print(">> Loading persistent authoritative OpenPGP release signer...")
     key_sec_path = Path(os.environ.get("VRKA_RELEASE_PRIVATE_KEY_PATH", Path.home() / ".vrka" / "vrka_release_signing_key.sec"))
     if not key_sec_path.is_file():
@@ -282,45 +264,118 @@ def generate_release_package(source_only: bool = False) -> None:
             f"Release signing failed closed: Loaded key fingerprint ({fp}) does not match pinned trusted fingerprint ({TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT})"
         )
 
-    # Ensure public key block in assets matches
-    pub_pem = str(key.pubkey)
+    # Ensure public key block in assets matches (LF only)
+    pub_pem = str(key.pubkey).replace("\r\n", "\n")
     pub_key_path = PROJECT_ROOT / "assets" / "keys" / "vrka-release.pub.asc"
     pub_key_path.parent.mkdir(parents=True, exist_ok=True)
-    pub_key_path.write_text(pub_pem, encoding="utf-8")
+    pub_key_path.write_bytes(pub_pem.encode("utf-8"))
 
-    # Update manifest metadata with exact signer key
-    manifest_data["signer_key_id"] = key_id
-    manifest_data["signer_fingerprint"] = fp
+    # 7. Generate RELEASE-MANIFEST.json (with exact signer metadata from loaded key)
+    git_commit, git_branch = get_git_info()
+    manifest_data = {
+        "$schema": "https://vrka.org/schemas/release-manifest-v1.json",
+        "application": "VRKA",
+        "version": "4.5.1",
+        "display_version": "4.5.1",
+        "build_number": "019",
+        "target_platform": "Windows x64",
+        "minimum_os": "Windows 10 Version 1809 (Build 17763)",
+        "git_commit": git_commit,
+        "git_branch": git_branch,
+        "build_timestamp": datetime.now(timezone.utc).isoformat(),
+        "signer_key_id": key_id,
+        "signer_fingerprint": fp,
+        "artifacts": artifacts_metadata,
+        "toolchain": {
+            "python": platform.python_version(),
+            "pyside6": "6.11.2",
+            "pyinstaller": "6.21.0",
+            "pgpy": "0.6.0",
+            "os": f"{platform.system()} {platform.release()} ({platform.machine()})",
+        },
+    }
     manifest_text = json.dumps(manifest_data, indent=2) + "\n"
-    manifest_path.write_text(manifest_text, encoding="utf-8")
+    manifest_text = manifest_text.replace("\r\n", "\n").replace("\r", "\n")
+    manifest_bytes = manifest_text.encode("utf-8")
+    if b"\r" in manifest_bytes:
+        raise ValueError("Security defect: Carriage return (CR) detected in manifest bytes!")
 
-    print(">> Generating OpenPGP detached signatures...")
-    sig_sha = key.sign(sha256sums_content.encode("utf-8"))
+    manifest_path = RELEASE_DIR / FN_MANIFEST_JSON
+    manifest_path.write_bytes(manifest_bytes)
+    print(f"[OK] Created {FN_MANIFEST_JSON} ({len(manifest_bytes)} bytes, LF only)")
+
+    # 8. Generate OpenPGP Detached Signatures from EXACT on-disk bytes
+    print(">> Generating OpenPGP detached signatures from exact on-disk bytes...")
+    exact_sha_bytes = sha256_path.read_bytes()
+    if b"\r" in exact_sha_bytes:
+        raise ValueError("Security defect: On-disk SHA256SUMS.txt contains CRLF!")
+    sig_sha = key.sign(exact_sha_bytes)
     sig_sha_path = RELEASE_DIR / FN_SHA256_ASC
-    sig_sha_path.write_text(str(sig_sha), encoding="utf-8")
+    sig_sha_bytes = str(sig_sha).replace("\r\n", "\n").encode("utf-8")
+    sig_sha_path.write_bytes(sig_sha_bytes)
     print(f"[OK] Created {FN_SHA256_ASC}")
 
-    sig_man = key.sign(manifest_text.encode("utf-8"))
+    exact_manifest_bytes = manifest_path.read_bytes()
+    if b"\r" in exact_manifest_bytes:
+        raise ValueError("Security defect: On-disk RELEASE-MANIFEST.json contains CRLF!")
+    sig_man = key.sign(exact_manifest_bytes)
     sig_man_path = RELEASE_DIR / FN_MANIFEST_ASC
-    sig_man_path.write_text(str(sig_man), encoding="utf-8")
+    sig_man_bytes = str(sig_man).replace("\r\n", "\n").encode("utf-8")
+    sig_man_path.write_bytes(sig_man_bytes)
     print(f"[OK] Created {FN_MANIFEST_ASC}")
 
-    # Immediately verify both signatures against pinned public key
-    res_sha = verify_openpgp_signature(sha256sums_content, str(sig_sha), TRUSTED_VRKA_RELEASE_KEY_PEM, TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT)
-    if not res_sha.is_valid:
-        raise RuntimeError(f"Post-signature self-check failed for {FN_SHA256SUMS}: {res_sha.error}")
-    res_man = verify_openpgp_signature(manifest_text, str(sig_man), TRUSTED_VRKA_RELEASE_KEY_PEM, TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT)
-    if not res_man.is_valid:
-        raise RuntimeError(f"Post-signature self-check failed for {FN_MANIFEST_JSON}: {res_man.error}")
-    print("[OK] OpenPGP detached signatures verified against pinned authoritative key.")
+    # 9. Mandatory Local Verification Gate immediately following signature creation
+    print(">> Executing mandatory local OpenPGP verification gate on exact bytes...")
+    res_sha_bytes = verify_openpgp_signature(
+        sha256_path.read_bytes(),
+        sig_sha_path.read_bytes().decode("utf-8"),
+        TRUSTED_VRKA_RELEASE_KEY_PEM,
+        TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT,
+    )
+    if not res_sha_bytes.is_valid:
+        raise RuntimeError(f"Local verification gate failed for {FN_SHA256SUMS} on exact bytes: {res_sha_bytes.error}")
+
+    res_sha_text = verify_openpgp_signature(
+        sha256_path.read_text(encoding="utf-8"),
+        sig_sha_path.read_text(encoding="utf-8"),
+        TRUSTED_VRKA_RELEASE_KEY_PEM,
+        TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT,
+    )
+    if not res_sha_text.is_valid:
+        raise RuntimeError(f"Local verification gate failed for {FN_SHA256SUMS} on decoded text: {res_sha_text.error}")
+
+    res_man_bytes = verify_openpgp_signature(
+        manifest_path.read_bytes(),
+        sig_man_path.read_bytes().decode("utf-8"),
+        TRUSTED_VRKA_RELEASE_KEY_PEM,
+        TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT,
+    )
+    if not res_man_bytes.is_valid:
+        raise RuntimeError(f"Local verification gate failed for {FN_MANIFEST_JSON} on exact bytes: {res_man_bytes.error}")
+
+    res_man_text = verify_openpgp_signature(
+        manifest_path.read_text(encoding="utf-8"),
+        sig_man_path.read_text(encoding="utf-8"),
+        TRUSTED_VRKA_RELEASE_KEY_PEM,
+        TRUSTED_VRKA_RELEASE_KEY_FINGERPRINT,
+    )
+    if not res_man_text.is_valid:
+        raise RuntimeError(f"Local verification gate failed for {FN_MANIFEST_JSON} on decoded text: {res_man_text.error}")
+
+    print("[PASS] Mandatory local verification gate passed: exact bytes match signatures with zero CRLF normalization.")
 
     # Delete private key from memory
     del key
 
-    # 8. Generate Documentation Artifacts
+    # 10. Run Full Test Suite (verifying line endings and signatures on generated release)
+    print("\n>> Running full regression & feature test suite against release...")
+    test_count, test_output = run_test_suite()
+    print(f"[OK] All {test_count} tests PASSED.")
+
+    # 11. Generate Documentation Artifacts
     # A. BUILD_REPORT.md
     build_report_path = RELEASE_DIR / "BUILD_REPORT.md"
-    build_report_path.write_text(f"""# VRKA 4.5.1 Build 019 — Authoritative Build Report
+    build_report_content = f"""# VRKA 4.5.1 Build 019 — Authoritative Build Report
 
 ## Release Directory
 ```
@@ -357,7 +412,8 @@ releases/VRKA-4.5.1-Build-019/
 - **Test Suite Result**: {test_count}/{test_count} tests PASSED (100%)
 - **Checksum Verification**: VERIFIED
 - **OpenPGP Authenticity**: VERIFIED
-""", encoding="utf-8")
+"""
+    build_report_path.write_bytes(build_report_content.replace("\r\n", "\n").encode("utf-8"))
     print("[OK] Created BUILD_REPORT.md")
 
     # B. TEST_RESULTS.md
@@ -370,7 +426,7 @@ releases/VRKA-4.5.1-Build-019/
     clean_test_output = "\n".join(clean_test_lines).strip()
 
     test_results_path = RELEASE_DIR / "TEST_RESULTS.md"
-    test_results_path.write_text(f"""# VRKA 4.5.1 Build 019 — Automated Test Suite Results
+    test_results_content = f"""# VRKA 4.5.1 Build 019 — Automated Test Suite Results
 
 **Execution Timestamp**: {manifest_data['build_timestamp']}  
 **Total Tests**: {test_count}  
@@ -379,12 +435,13 @@ releases/VRKA-4.5.1-Build-019/
 ```
 {clean_test_output}
 ```
-""", encoding="utf-8")
+"""
+    test_results_path.write_bytes(test_results_content.replace("\r\n", "\n").encode("utf-8"))
     print("[OK] Created TEST_RESULTS.md")
 
     # C. SECURITY_REVIEW.md
     sec_review_path = RELEASE_DIR / "SECURITY_REVIEW.md"
-    sec_review_path.write_text(f"""# VRKA 4.5.1 Build 019 — Security Architecture & Release Verification
+    sec_review_content = f"""# VRKA 4.5.1 Build 019 — Security Architecture & Release Verification
 
 ## 1. Release Authenticity & Trust Model
 
@@ -406,22 +463,24 @@ VRKA 4.5.1 implements an authenticated OpenPGP release verification model:
 - yt-dlp release verification: SHA2-256SUMS digest validation, OpenPGP signature checking with pinned key 57CF65933B5A7581, and binary execution test.
 - uBlock Origin Lite & Puemos: SHA-256 integrity, ZIP archive validation, Manifest V3 structure checks, and runtime verification.
 - 24-hour rate limiting on startup checks to prevent notification spam.
-""", encoding="utf-8")
+"""
+    sec_review_path.write_bytes(sec_review_content.replace("\r\n", "\n").encode("utf-8"))
     print("[OK] Created SECURITY_REVIEW.md")
 
     # D. WINDOWS_CHECKPOINT.md
     win_chk_path = RELEASE_DIR / "WINDOWS_CHECKPOINT.md"
-    win_chk_path.write_text(f"""# VRKA 4.5.1 Build 019 — Windows Platform Checkpoint
+    win_chk_content = f"""# VRKA 4.5.1 Build 019 — Windows Platform Checkpoint
 
 ## Desktop Environment & Compatibility
 - **Supported OS**: Windows 10 x64 (Version 1809+) & Windows 11 x64 (all builds)
 - **UI Architecture**: Frameless hardware-accelerated Qt 6 Quick / QML
 - **Window Chrome**: Custom title bar with native dragging (`startSystemMove()`), double-click maximize/restore, corner/edge resizing (`startSystemResize()`), and Windows 11 Snap Layouts.
 - **High-DPI Support**: Vector icons, mipmapped wolf branding, and dynamic font scaling.
-""", encoding="utf-8")
+"""
+    win_chk_path.write_bytes(win_chk_content.replace("\r\n", "\n").encode("utf-8"))
     print("[OK] Created WINDOWS_CHECKPOINT.md")
 
-    # 9. Independent Post-Generation Verification
+    # 11. Independent Post-Generation Verification
     print("\n" + "=" * 70)
     print(">> RUNNING POST-GENERATION INTEGRITY & AUTHENTICITY AUDIT")
     print("=" * 70)
@@ -445,27 +504,27 @@ VRKA 4.5.1 implements an authenticated OpenPGP release verification model:
                 raise ValueError(f"Post-build SHA256 mismatch for {fname}: expected {expected_h}, got {actual_h}")
             print(f"  [PASS] SHA-256 verified: {fname}")
 
-    # C. Verify OpenPGP Signature on SHA256SUMS.txt
+    # C. Verify OpenPGP Signature on SHA256SUMS.txt using exact on-disk bytes
     sig_res = verify_openpgp_signature(
-        content=sha256sums_content,
-        signature=sig_sha_path.read_text(encoding="utf-8"),
+        content=sha256_path.read_bytes(),
+        signature=sig_sha_path.read_bytes().decode("utf-8"),
         trusted_pubkey_pem=pub_pem,
         expected_fingerprint=fp,
     )
     if not sig_res.is_valid:
         raise ValueError(f"Post-build OpenPGP signature verification failed on {FN_SHA256SUMS}: {sig_res.error}")
-    print(f"  [PASS] OpenPGP signature verified on {FN_SHA256SUMS} (Key ID: {sig_res.key_id})")
+    print(f"  [PASS] OpenPGP signature verified on {FN_SHA256SUMS} exact bytes (Key ID: {sig_res.key_id})")
 
-    # D. Verify OpenPGP Signature on RELEASE-MANIFEST.json
+    # D. Verify OpenPGP Signature on RELEASE-MANIFEST.json using exact on-disk bytes
     man_sig_res = verify_openpgp_signature(
-        content=manifest_text,
-        signature=sig_man_path.read_text(encoding="utf-8"),
+        content=manifest_path.read_bytes(),
+        signature=sig_man_path.read_bytes().decode("utf-8"),
         trusted_pubkey_pem=pub_pem,
         expected_fingerprint=fp,
     )
     if not man_sig_res.is_valid:
         raise ValueError(f"Post-build OpenPGP signature verification failed on {FN_MANIFEST_JSON}: {man_sig_res.error}")
-    print(f"  [PASS] OpenPGP signature verified on {FN_MANIFEST_JSON} (Key ID: {man_sig_res.key_id})")
+    print(f"  [PASS] OpenPGP signature verified on {FN_MANIFEST_JSON} exact bytes (Key ID: {man_sig_res.key_id})")
 
     # E. Verify no private keys in output directory
     for root, _, files in os.walk(RELEASE_DIR):
@@ -483,4 +542,5 @@ VRKA 4.5.1 implements an authenticated OpenPGP release verification model:
 
 if __name__ == "__main__":
     source_only_mode = "--refresh-source" in sys.argv or "--source-only" in sys.argv
-    generate_release_package(source_only=source_only_mode)
+    preserve_packages_mode = "--preserve-packages" in sys.argv or "--metadata-only" in sys.argv or "--resign" in sys.argv
+    generate_release_package(source_only=source_only_mode, preserve_packages=preserve_packages_mode)
