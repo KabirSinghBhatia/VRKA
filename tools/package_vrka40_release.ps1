@@ -1,5 +1,5 @@
 param(
-    [string]$OutputDirectory = "outputs\VRKA-4.5-build018-release"
+    [string]$OutputDirectory = "outputs\VRKA-4.5.1-build019-release"
 )
 
 $ErrorActionPreference = "Stop"
@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $outputRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDirectory))
-$stageRoot = Join-Path $projectRoot ".release_stage_4_5_0"
+$stageRoot = Join-Path $projectRoot ".release_stage_4_5_1"
 
 Write-Host "Creating release package at $outputRoot..."
 
@@ -18,10 +18,10 @@ New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 
 $names = [ordered]@{
-    PortableZip = "VRKA-4.5-build018-portable-Windows-x64.zip"
-    PortableExe = "VRKA-4.5-build018-portable-Windows-x64.exe"
-    Installer   = "VRKA-4.5-build018-setup-Windows-x64.exe"
-    SourceZip   = "VRKA-4.5-build018-complete-source.zip"
+    PortableZip = "VRKA-4.5.1-Build-019-Portable.zip"
+    PortableExe = "VRKA-4.5.1-Build-019-Portable.exe"
+    Installer   = "VRKA-4.5.1-Build-019-Setup.exe"
+    SourceZip   = "VRKA-4.5.1-Build-019-Source.zip"
     Hashes      = "SHA256SUMS.txt"
 }
 

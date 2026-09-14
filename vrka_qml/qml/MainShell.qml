@@ -425,6 +425,23 @@ ApplicationWindow {
                 }
             }
         }
+
+        // Non-blocking Startup Combined Component Update Dialog
+        CombinedUpdateDialog {
+            id: startupDialog
+            visible: typeof Operational !== "undefined" && Operational && Operational.startupDialogVisible
+            updatesList: (typeof Operational !== "undefined" && Operational) ? Operational.startupUpdates : []
+            onUpdateRequested: {
+                if (typeof Operational !== "undefined" && Operational) {
+                    Operational.acceptStartupDialog()
+                }
+            }
+            onDismissRequested: {
+                if (typeof Operational !== "undefined" && Operational) {
+                    Operational.dismissStartupDialog()
+                }
+            }
+        }
     }
 
     // Native Window Edge & Corner Resize Handles

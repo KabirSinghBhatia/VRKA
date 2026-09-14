@@ -1,11 +1,11 @@
-# VRKA 4.5.0 Build 018 Test Results
+# VRKA 4.5.1 Build 019 Test Results
 
 ## Summary
 
 | Result | Count |
 | :--- | ---: |
-| Tests | 143 |
-| Passed | 143 |
+| Tests | 156 |
+| Passed | 156 |
 | Failed | 0 |
 | Errors | 0 |
 | Skipped | 0 |
@@ -16,9 +16,10 @@
 
 | Suite Module | Tests | Status | Scope |
 | :--- | :---: | :---: | :--- |
-| `tests.test_app_updater` | 5 | PASSED | SemanticVersion parsing and comparison, redirect allowlisting, hop limits, and package SHA-256 verification. |
+| `tests.test_app_updater` | 10 | PASSED | SemanticVersion parsing, downgrade rejection, redirect allowlisting, hop limits, package SHA-256 verification, concurrency locking, and fail-closed staging cleanup. |
 | `tests.test_build010_core` | 7 | PASSED | Core download state persistence, FIFO queue ordering, and task state transitions. |
 | `tests.test_build010_scheduler` | 8 | PASSED | Single-worker FIFO task scheduling, process isolation, cancellation, and task recovery. |
+| `tests.test_component_updater` | 8 | PASSED | Independent component updates (yt-dlp, uBlock Origin Lite MV3, Puemos MV3), 24h startup gate, batch updates, atomic staging, and rollback. |
 | `tests.test_coverage_model` | 11 | PASSED | Media observation, candidate ranking models, and stream manifest detection coverage. |
 | `tests.test_failure_classifier` | 40 | PASSED | yt-dlp failure classification (flashvars, KVS, client-side player, embedded player, generic parser, Cloudflare, cookies, HTTP blocks), non-recoverable filtering, anti-recursion guards, and end-to-end browser fallback routing. |
 | `tests.test_header_security` | 7 | PASSED | RFC 7230 header validation, CRLF injection prevention, and sensitive header redaction. |

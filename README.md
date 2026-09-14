@@ -11,7 +11,7 @@
   </p>
 
   <p>
-    <a href="https://github.com/MaverickRox/VRKA/releases/latest"><b>Download VRKA 4.5</b></a> •
+    <a href="https://github.com/MaverickRox/VRKA/releases/latest"><b>Download VRKA 4.5.1</b></a> •
     <a href="docs/USER_GUIDE.md">User Guide</a> •
     <a href="docs/ARCHITECTURE_OVERVIEW.md">Architecture</a> •
     <a href="https://github.com/MaverickRox/VRKA/issues/new/choose">Report Issue</a> •
@@ -27,16 +27,16 @@
 
 ---
 
-## Download VRKA 4.5
+## Download VRKA 4.5.1
 
-Get the official Windows release from [GitHub Releases (v4.5.0)](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.0):
+Get the official Windows release from [GitHub Releases (v4.5.1)](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1):
 
 | Package | Filename | Recommended For | Description |
 | :--- | :--- | :--- | :--- |
-| **[Windows Installer](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.0)** | `VRKA-4.5.0-Build-018-Setup.exe` | Most Users | Standard setup wizard with Start Menu and Desktop shortcuts. |
-| **[Portable ZIP](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.0)** | `VRKA-4.5.0-Build-018-Portable.zip` | USB / Portable | Standalone directory — extract anywhere and run `VRKA.exe`. |
-| **[Single-File Portable EXE](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.0)** | `VRKA-4.5.0-Build-018-Portable.exe` | Lightweight Run | Single-file executable. Provisions managed runtime on first use. |
-| **[Complete Source Archive](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.0)** | `VRKA-4.5.0-Build-018-Source.zip` | Developers | Complete buildable source distribution snapshot. |
+| **[Windows Installer](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Setup.exe` | Most Users | Standard setup wizard with Start Menu and Desktop shortcuts. |
+| **[Portable ZIP](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Portable.zip` | USB / Portable | Standalone directory — extract anywhere and run `VRKA.exe`. |
+| **[Single-File Portable EXE](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Portable.exe` | Lightweight Run | Single-file executable. Provisions managed runtime on first use. |
+| **[Complete Source Archive](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.1)** | `VRKA-4.5.1-Build-019-Source.zip` | Developers | Complete buildable source distribution snapshot. |
 
 > **No Manual FFmpeg Installation Required**:
 > VRKA is strictly PATH-independent. The application automatically provisions and verifies required media processing components in `%LOCALAPPDATA%\VRKA\runtime\` upon first video merge or audio extraction, and reuses them offline on subsequent runs.
@@ -46,7 +46,7 @@ Get the official Windows release from [GitHub Releases (v4.5.0)](https://github.
 Every release provides a `SHA256SUMS.txt` manifest and detached OpenPGP signatures (`SHA256SUMS.txt.asc`). Verify your download in PowerShell:
 
 ```powershell
-Get-FileHash .\VRKA-4.5.0-Build-018-Setup.exe -Algorithm SHA256
+Get-FileHash .\VRKA-4.5.1-Build-019-Setup.exe -Algorithm SHA256
 ```
 
 ---
@@ -67,7 +67,7 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 - **Audio Extraction & Transcoding**: Extract audio in MP3 (320, 256, 192, 128 kbps), Opus, or uncompressed WAV formats.
 - **Flexible Destination Modes**: Choose between Remember Location (persists chosen folder) or Ask Every Time (prompts for each download).
 - **Advanced Network & Custom Headers**: Strict RFC 7230 header validation, CRLF injection rejection, and automatic secret scrubbing from logs.
-- **Secure In-App Updates**: Direct in-app application and component updates with SHA-256 verification and rollback support.
+- **Secure In-App & Component Updates**: Direct in-app application and independent component updates (yt-dlp, uBlock Origin Lite MV3, Puemos MV3) with OpenPGP release signing, SHA-256 package verification, 24-hour rate limiting, combined update prompts, and rollback support.
 - **Durable Task Queue**: Sequential single-worker FIFO queue with persistent state storage across application restarts.
 - **Intelligent Browser Fallback**: When direct yt-dlp extraction cannot resolve media but indicates that browser execution may recover it, VRKA continues via an isolated WebView2 session with uBlock Origin Lite protection. Fallback is attempted at most once per task; network, cancellation, local system, FFmpeg, DRM, and post-transfer failures remain terminal.
 - **Sanitized Diagnostics**: Export redacted diagnostic reports for troubleshooting without leaking credentials or private session data.
@@ -109,13 +109,13 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 
 ### Using the Setup Installer (Recommended)
 
-1. Download `VRKA-4.5.0-Build-018-Setup.exe` from [Releases](https://github.com/MaverickRox/VRKA/releases/latest).
+1. Download `VRKA-4.5.1-Build-019-Setup.exe` from [Releases](https://github.com/MaverickRox/VRKA/releases/latest).
 2. Run the installer and follow the setup steps.
 3. Launch VRKA from the Start Menu or Desktop shortcut.
 
 ### Using Portable Mode
 
-1. Download `VRKA-4.5.0-Build-018-Portable.zip`.
+1. Download `VRKA-4.5.1-Build-019-Portable.zip`.
 2. Extract the archive to any folder or USB drive.
 3. Run `VRKA.exe`. All settings are stored locally, and no administrative privileges are required.
 

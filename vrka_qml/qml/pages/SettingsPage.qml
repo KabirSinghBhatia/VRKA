@@ -230,6 +230,45 @@ ScrollView {
                 Layout.fillWidth: true
                 spacing: 14
 
+                // Authoritative Batch Operation Header Row
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    VPrimaryButton {
+                        text: (typeof Operational !== "undefined" && Operational && Operational.batchBusy) ? "Checking All..." : "Check All Updates"
+                        enabled: !(typeof Operational !== "undefined" && Operational && Operational.batchBusy)
+                        Layout.preferredHeight: 34
+                        Layout.preferredWidth: 160
+                        onClicked: {
+                            if (typeof Operational !== "undefined" && Operational) {
+                                Operational.checkAllUpdates()
+                            }
+                        }
+                    }
+
+                    VSecondaryButton {
+                        text: "Update All Available"
+                        visible: (typeof Operational !== "undefined" && Operational && (Operational.updaterUpdateAvailable || Operational.ubolUpdateAvailable || Operational.puemosUpdateAvailable))
+                        enabled: !(typeof Operational !== "undefined" && Operational && Operational.batchBusy)
+                        Layout.preferredHeight: 34
+                        onClicked: {
+                            if (typeof Operational !== "undefined" && Operational) {
+                                Operational.updateAllAvailable()
+                            }
+                        }
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: (typeof Operational !== "undefined" && Operational) ? Operational.batchStatusText : "Ready"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.microSize
+                        color: Theme.textDim
+                        elide: Text.ElideRight
+                    }
+                }
+
                 // Component 1: yt-dlp Engine
                 Rectangle {
                     Layout.fillWidth: true
@@ -447,6 +486,13 @@ ScrollView {
                                     Layout.preferredHeight: 30
                                     onClicked: Operational.checkUbolUpdate()
                                 }
+                                VPrimaryButton {
+                                    text: "Install"
+                                    visible: (typeof Operational !== "undefined" && Operational && Operational.ubolUpdateAvailable)
+                                    enabled: !(typeof Operational !== "undefined" && Operational && Operational.ubolBusy)
+                                    Layout.preferredHeight: 30
+                                    onClicked: Operational.installUbolUpdate()
+                                }
                             }
                         }
                     }
@@ -518,6 +564,13 @@ ScrollView {
                                     enabled: !(typeof Operational !== "undefined" && Operational && Operational.puemosBusy)
                                     Layout.preferredHeight: 30
                                     onClicked: Operational.checkPuemosUpdate()
+                                }
+                                VPrimaryButton {
+                                    text: "Install"
+                                    visible: (typeof Operational !== "undefined" && Operational && Operational.puemosUpdateAvailable)
+                                    enabled: !(typeof Operational !== "undefined" && Operational && Operational.puemosBusy)
+                                    Layout.preferredHeight: 30
+                                    onClicked: Operational.applyObserverUpdate()
                                 }
                             }
                         }

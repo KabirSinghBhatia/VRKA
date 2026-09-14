@@ -47,18 +47,32 @@ from .watchdog import (
     WatchdogPolicy,
 )
 
+from .updater_state import (
+    AppUpdateState,
+    BatchUpdateState,
+    ComponentUpdateState,
+    UpdateStateStore,
+)
+from .component_updater import (
+    BatchUpdater,
+    PuemosUpdater,
+    UBlockUpdater,
+    YtdlpUpdater,
+)
+
 __all__ = [
-    "ActivityPhase", "AutomaticFallbackExecutor", "BrowserContextCancelled",
-    "BrowserFallbackCancelled",
+    "ActivityPhase", "AppUpdateState", "AutomaticFallbackExecutor", "BatchUpdateState",
+    "BatchUpdater", "BrowserContextCancelled", "BrowserFallbackCancelled",
     "BrowserFallbackError", "BrowserSelectionRequired", "Build008TaskAdapter", "CandidateKind",
-    "ClassificationResult", "ClassifyCaptureEntry", "ExternalReplayRejected",
-    "FailureCategory", "MediaBodyCapture", "RecoveryAction",
+    "ClassificationResult", "ClassifyCaptureEntry", "ComponentUpdateState", "ExternalReplayRejected",
+    "FailureCategory", "MediaBodyCapture", "PuemosUpdater", "RecoveryAction",
     "CandidateLifecycle", "CandidateRanker", "CandidateStore", "CoreEvent",
     "DirectPathEligibleForFallback", "DownloadState", "EventBus", "HandoffBundle",
     "JsonFileBrowserEpisode", "MeaningfulActivityWatchdog", "MonitoredProcessRunner",
     "OwnedProcessRegistry", "ProcessCancelled", "ProcessInactivity", "ProcessResult",
     "ProtectedBrowserFallback", "SubprocessBrowserLauncher", "TaskCancelled",
     "TaskExecutionContext", "TaskRecord", "TaskScheduler", "TaskSpec", "TaskStore",
-    "TaskStoreError", "WatchdogPolicy", "assemble_browser_capture",
-    "classify_capture_entry", "classify_failure", "is_browser_recoverable",
+    "TaskStoreError", "UBlockUpdater", "UpdateStateStore", "WatchdogPolicy",
+    "YtdlpUpdater", "assemble_browser_capture", "classify_capture_entry",
+    "classify_failure", "is_browser_recoverable",
 ]

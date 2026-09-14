@@ -1,5 +1,6 @@
-"""Operational integration for VRKA 4.5: Browser fallback, MediaObserver, yt-dlp updater,
-Application self-updater, browser session clearing, and sanitized diagnostics.
+"""Operational integration for VRKA 4.5.1: Browser fallback, MediaObserver, yt-dlp updater,
+uBlock Origin Lite updater, Puemos updater, 24-hour startup check, Application self-updater,
+browser session clearing, and sanitized diagnostics.
 """
 
 from __future__ import annotations
@@ -9,13 +10,27 @@ import platform
 import shutil
 import sys
 import threading
+import time
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import Property, QObject, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 
 import vrka_downloader as app
 from vrka_core.header_security import redact_secrets_from_text
+from vrka_core.updater_state import (
+    AppUpdateState,
+    BatchUpdateState,
+    ComponentUpdateState,
+    UpdateStateStore,
+)
+from vrka_core.component_updater import (
+    BatchUpdater,
+    PuemosUpdater,
+    UBlockUpdater,
+    YtdlpUpdater,
+)
 from .app_updater import (
     AppUpdateInfo,
     check_for_application_update,
@@ -60,6 +75,15 @@ class OperationalController(QObject):
     puemosAvailableVersionChanged = Signal()
     puemosUpdateAvailableChanged = Signal()
 
+    # Authoritative Batch Updater
+    batchBusyChanged = Signal()
+    batchStatusTextChanged = Signal()
+
+    # 24-Hour Startup Check & Dialog
+    startupDialogVisibleChanged = Signal()
+    startupUpdatesChanged = Signal()
+    startupUpdateDialogRequested = Signal(list)
+
     # Application Self-Updater
     appUpdateBusyChanged = Signal()
     appUpdateStatusTextChanged = Signal()
@@ -76,6 +100,10 @@ class OperationalController(QObject):
         self._bridge = bridge
         self._settings = settings_state
 
+        # Persistent Update Store & Batch Updater
+        self._store = UpdateStateStore()
+        self._batch_updater = BatchUpdater(self._store)
+
         self._browser_state: str = "idle"
         self._browser_error: str = ""
         self._browser_needed_url: str = ""
@@ -85,6 +113,7 @@ class OperationalController(QObject):
         self._observer_status_text: str = ""
         self._observer_health_ok: bool = False
 
+        # yt-dlp state
         self._updater_busy: bool = False
         self._updater_status_text: str = ""
         self._updater_operational_status: str = "Ready"
@@ -108,6 +137,15 @@ class OperationalController(QObject):
         self._puemos_available_version: str = ""
         self._puemos_update_available: bool = False
 
+        # Batch Updater state
+        self._batch_busy: bool = False
+        self._batch_status_text: str = "Ready"
+
+        # Startup update dialog state
+        self._startup_dialog_visible: bool = False
+        self._startup_updates: list[dict[str, Any]] = []
+
+        # App Self-Updater state
         self._app_update_busy: bool = False
         self._app_update_status_text: str = "Ready to check for application updates."
         self._app_update_available: bool = False
@@ -127,6 +165,32 @@ class OperationalController(QObject):
         """Initialize runtime subsystem status asynchronously after UI creation."""
         self._refresh_updater_snapshot()
         self._refresh_observer_snapshot()
+        self._refresh_ubol_snapshot()
+        self._check_startup_updates_async()
+
+    def _check_startup_updates_async(self) -> None:
+        """Non-blocking 24-hour rate-limited component check at application startup."""
+        if not self._store.can_run_auto_check():
+            return
+
+        def _worker():
+            try:
+                res = self._batch_updater.check_all(bypass_rate_limit=False)
+                if res.get("has_updates") and self._store.can_show_auto_popup():
+                    updates = res.get("updates_list", [])
+                    self._startup_updates = updates
+                    self._startup_dialog_visible = True
+                    self._store.record_auto_popup()
+                    self.startupUpdatesChanged.emit()
+                    self.startupDialogVisibleChanged.emit()
+                    self.startupUpdateDialogRequested.emit(updates)
+                self._refresh_updater_snapshot()
+                self._refresh_observer_snapshot()
+                self._refresh_ubol_snapshot()
+            except Exception:
+                pass
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Browser session & Fallback
@@ -153,50 +217,45 @@ class OperationalController(QObject):
         return self._browser_ready_summary
 
     def _on_browser_needed(self, url: str, category: str) -> None:
-        self._browser_needed_url = str(url)
-        self._browser_needed_category = str(category)
         self._browser_state = "needed"
-        self._browser_error = ""
+        self._browser_needed_url = url
+        self._browser_needed_category = category
+        self.browserStateChanged.emit()
         self.browserNeededUrlChanged.emit()
         self.browserNeededCategoryChanged.emit()
-        self.browserStateChanged.emit()
-        self.browserErrorChanged.emit()
 
-    def _on_browser_ready(self, payload: dict) -> None:
-        try:
-            count = len(list(payload.get("media_candidates") or [])[:10])
-            observed = int(payload.get("observed_request_count") or 0)
-            self._browser_ready_summary = f"Session ready: {observed} request(s), {count} candidate(s)"
-        except Exception:
-            self._browser_ready_summary = "Session ready"
-        try:
-            self._host._verified_session = dict(payload)
-        except Exception:
-            pass
+    def _on_browser_ready(self, summary: str) -> None:
         self._browser_state = "ready"
-        self._browser_error = ""
+        self._browser_ready_summary = summary
+        self.browserStateChanged.emit()
         self.browserReadySummaryChanged.emit()
+
+    def _on_browser_error(self, err: str) -> None:
+        self._browser_state = "error"
+        self._browser_error = err
         self.browserStateChanged.emit()
         self.browserErrorChanged.emit()
 
-    def _on_browser_error(self, message: str) -> None:
-        self._browser_error = str(message)
-        self._browser_state = "error"
-        self.browserErrorChanged.emit()
-        self.browserStateChanged.emit()
+    @Slot()
+    def launchBrowserSession(self) -> None:
+        """User clicked to launch the protected fallback browser manually."""
+        if self._browser_needed_url:
+            self._host.launch_browser_for_url(self._browser_needed_url)
 
     @Slot()
     def clearBrowserSession(self) -> None:
+        """Clear all stored cookies, cache, and WebStorage in fallback profile."""
         try:
-            self._host._verified_session = {}
-            self._host._browser_candidate_map = {"Automatic": None}
-        except Exception:
-            pass
-        self._browser_state = "idle"
-        self._browser_error = ""
-        self._browser_needed_url = ""
-        self._browser_needed_category = ""
-        self._browser_ready_summary = ""
+            self._host.clear_browser_profile()
+            self._browser_state = "idle"
+            self._browser_error = ""
+            self._browser_ready_summary = "Browser session data successfully purged."
+            self.browserStateChanged.emit()
+            self.browserErrorChanged.emit()
+            self.browserReadySummaryChanged.emit()
+        except Exception as exc:
+            self._browser_error = f"Failed to clear profile: {exc}"
+            self.browserErrorChanged.emit()
 
     @Slot(result=str)
     def clearBrowserSessionData(self) -> str:
@@ -235,7 +294,7 @@ class OperationalController(QObject):
         self.browserStateChanged.emit()
 
     # ------------------------------------------------------------------
-    # MediaObserver & Components (Independent State)
+    # Media observer properties
     # ------------------------------------------------------------------
 
     @Property(str, notify=observerStatusTextChanged)
@@ -246,7 +305,10 @@ class OperationalController(QObject):
     def observerHealthOk(self) -> bool:
         return self._observer_health_ok
 
+    # ------------------------------------------------------------------
     # uBlock Origin Lite Properties
+    # ------------------------------------------------------------------
+
     @Property(bool, notify=ubolBusyChanged)
     def ubolBusy(self) -> bool:
         return self._ubol_busy
@@ -271,7 +333,10 @@ class OperationalController(QObject):
     def ubolUpdateAvailable(self) -> bool:
         return self._ubol_update_available
 
+    # ------------------------------------------------------------------
     # Puemos Media Observer Properties
+    # ------------------------------------------------------------------
+
     @Property(bool, notify=puemosBusyChanged)
     def puemosBusy(self) -> bool:
         return self._puemos_busy
@@ -296,6 +361,34 @@ class OperationalController(QObject):
     def puemosUpdateAvailable(self) -> bool:
         return self._puemos_update_available
 
+    # ------------------------------------------------------------------
+    # Batch Updater Properties
+    # ------------------------------------------------------------------
+
+    @Property(bool, notify=batchBusyChanged)
+    def batchBusy(self) -> bool:
+        return self._batch_busy
+
+    @Property(str, notify=batchStatusTextChanged)
+    def batchStatusText(self) -> str:
+        return self._batch_status_text
+
+    # ------------------------------------------------------------------
+    # Startup Update Dialog Properties
+    # ------------------------------------------------------------------
+
+    @Property(bool, notify=startupDialogVisibleChanged)
+    def startupDialogVisible(self) -> bool:
+        return self._startup_dialog_visible
+
+    @Property("QVariantList", notify=startupUpdatesChanged)
+    def startupUpdates(self) -> list:
+        return self._startup_updates
+
+    # ------------------------------------------------------------------
+    # Snapshots
+    # ------------------------------------------------------------------
+
     def _refresh_observer_snapshot(self) -> None:
         try:
             text = self._host._media_observer_status_text()
@@ -318,10 +411,17 @@ class OperationalController(QObject):
         self._observer_status_text = str(text)
         self._observer_health_ok = bool(health_ok)
         self._puemos_operational_status = "Active" if health_ok else "Degraded"
-        self._ubol_operational_status = "Active"
+        self._puemos_current_version = self._batch_updater.puemos.get_installed_version()
         self.observerStatusTextChanged.emit()
         self.observerHealthChanged.emit()
         self.puemosOperationalStatusChanged.emit()
+        self.puemosCurrentVersionChanged.emit()
+
+    def _refresh_ubol_snapshot(self) -> None:
+        ver = self._batch_updater.ubol.get_installed_version()
+        self._ubol_current_version = ver
+        self._ubol_operational_status = "Active"
+        self.ubolCurrentVersionChanged.emit()
         self.ubolOperationalStatusChanged.emit()
 
     @Slot()
@@ -332,6 +432,11 @@ class OperationalController(QObject):
     def refreshAllSubsystems(self) -> None:
         self._refresh_updater_snapshot()
         self._refresh_observer_snapshot()
+        self._refresh_ubol_snapshot()
+
+    # ------------------------------------------------------------------
+    # uBlock Origin Lite Actions
+    # ------------------------------------------------------------------
 
     @Slot()
     def checkUbolUpdate(self) -> None:
@@ -339,19 +444,30 @@ class OperationalController(QObject):
             return
         self._ubol_busy = True
         self._ubol_operational_status = "Checking..."
-        self._ubol_status_text = "Checking uBlock Origin Lite rulesets..."
+        self._ubol_status_text = "Checking uBlock Origin Lite releases..."
         self.ubolBusyChanged.emit()
         self.ubolOperationalStatusChanged.emit()
         self.ubolStatusTextChanged.emit()
 
         def _worker():
             try:
-                import time
-                time.sleep(0.4)
-                self._ubol_operational_status = "Up to date"
-                self._ubol_status_text = "Rulesets current (1.0.4 MV3)"
+                info = self._batch_updater.ubol.check_update()
+                if info.get("error"):
+                    self._ubol_operational_status = "Failed"
+                    self._ubol_status_text = f"Check failed: {info.get('error')}"
+                elif info.get("update_available"):
+                    self._ubol_operational_status = "Update available"
+                    self._ubol_available_version = str(info.get("available_version"))
+                    self._ubol_update_available = True
+                    self._ubol_status_text = f"Update available: {self._ubol_available_version}"
+                else:
+                    self._ubol_operational_status = "Up to date"
+                    self._ubol_status_text = f"uBOL is current ({info.get('current_version')})"
                 self.ubolOperationalStatusChanged.emit()
                 self.ubolStatusTextChanged.emit()
+                self.ubolAvailableVersionChanged.emit()
+                self.ubolUpdateAvailableChanged.emit()
+                self._refresh_ubol_snapshot()
             except Exception as exc:
                 self._ubol_operational_status = "Failed"
                 self._ubol_status_text = f"Check error: {exc}"
@@ -362,6 +478,46 @@ class OperationalController(QObject):
                 self.ubolBusyChanged.emit()
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    @Slot()
+    def installUbolUpdate(self) -> None:
+        if self._ubol_busy:
+            return
+        self._ubol_busy = True
+        self._ubol_operational_status = "Updating..."
+        self._ubol_status_text = "Downloading verified uBOL MV3 extension..."
+        self.ubolBusyChanged.emit()
+        self.ubolOperationalStatusChanged.emit()
+        self.ubolStatusTextChanged.emit()
+
+        def _worker():
+            try:
+                res = self._batch_updater.ubol.install_update()
+                if res.get("updated"):
+                    self._ubol_operational_status = "Active"
+                    self._ubol_update_available = False
+                    self._ubol_status_text = f"Updated to {res.get('installed_version')}"
+                else:
+                    self._ubol_operational_status = "Failed"
+                    self._ubol_status_text = f"Update failed: {res.get('error')}"
+                self.ubolOperationalStatusChanged.emit()
+                self.ubolStatusTextChanged.emit()
+                self.ubolUpdateAvailableChanged.emit()
+                self._refresh_ubol_snapshot()
+            except Exception as exc:
+                self._ubol_operational_status = "Failed"
+                self._ubol_status_text = f"Update error: {exc}"
+                self.ubolOperationalStatusChanged.emit()
+                self.ubolStatusTextChanged.emit()
+            finally:
+                self._ubol_busy = False
+                self.ubolBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # Puemos Actions
+    # ------------------------------------------------------------------
 
     @Slot()
     def checkPuemosUpdate(self) -> None:
@@ -376,8 +532,7 @@ class OperationalController(QObject):
 
         def _worker():
             try:
-                from vrka_core.media_observer import check_for_update
-                info = check_for_update()
+                info = self._batch_updater.puemos.check_update()
                 if info.get("error"):
                     self._puemos_operational_status = "Failed"
                     self._puemos_status_text = f"Check failed: {info.get('error')}"
@@ -422,18 +577,17 @@ class OperationalController(QObject):
 
         def _worker():
             try:
-                from vrka_core.media_observer import apply_update
-                result = apply_update()
+                result = self._batch_updater.puemos.install_update()
                 if result.get("updated"):
                     self._puemos_operational_status = "Up to date"
+                    self._puemos_update_available = False
                     self._puemos_status_text = f"Updated to {result.get('installed_version')}"
-                elif result.get("message"):
-                    self._puemos_status_text = str(result.get("message"))
                 else:
                     self._puemos_operational_status = "Failed"
                     self._puemos_status_text = f"Observer update failed: {result.get('error')}"
                 self.puemosOperationalStatusChanged.emit()
                 self.puemosStatusTextChanged.emit()
+                self.puemosUpdateAvailableChanged.emit()
                 self._refresh_observer_snapshot()
             except Exception as exc:
                 self._puemos_operational_status = "Failed"
@@ -476,10 +630,8 @@ class OperationalController(QObject):
 
     def _refresh_updater_snapshot(self) -> None:
         try:
-            summary = app.active_ytdlp_summary()
-            ver = summary.get('version')
-            src = summary.get('source')
-            if ver:
+            ver, src = self._batch_updater.ytdlp.get_installed_version()
+            if ver and ver != "Unavailable":
                 self._updater_current_version = f"{ver} ({src})"
                 self._updater_operational_status = "Active"
                 self._updater_status_text = f"Active: {self._updater_current_version}"
@@ -507,13 +659,13 @@ class OperationalController(QObject):
 
         def _worker():
             try:
-                info = app.check_ytdlp_update(channel)
+                info = self._batch_updater.ytdlp.check_update(channel)
                 available = str(info.get("available_version") or "")
                 self._updater_available_version = available
-                self._updater_update_available = bool(info.get("available"))
+                self._updater_update_available = bool(info.get("update_available"))
                 if info.get("error"):
                     self._updater_status_text = f"Check failed: {info.get('error')}"
-                elif info.get("available"):
+                elif info.get("update_available"):
                     self._updater_status_text = f"Update available: {available} (current {self._updater_current_version})"
                 else:
                     self._updater_status_text = f"yt-dlp is current ({self._updater_current_version})"
@@ -541,9 +693,14 @@ class OperationalController(QObject):
 
         def _worker():
             try:
-                installed = app.install_ytdlp_update(channel)
-                self._refresh_updater_snapshot()
-                self._updater_status_text = f"Updated to {installed.get('version')} ({installed.get('channel')})"
+                installed = self._batch_updater.ytdlp.install_update(channel=channel)
+                if installed.get("updated"):
+                    self._updater_update_available = False
+                    self._refresh_updater_snapshot()
+                    self._updater_status_text = f"Updated to {installed.get('version')}"
+                else:
+                    self._updater_status_text = f"Update failed: {installed.get('error')}"
+                self.updaterUpdateAvailableChanged.emit()
                 self.updaterStatusTextChanged.emit()
             except Exception as exc:
                 self._updater_status_text = f"Update failed: {exc}"
@@ -565,9 +722,12 @@ class OperationalController(QObject):
 
         def _worker():
             try:
-                info = app.rollback_ytdlp_update()
-                self._updater_status_text = f"Rolled back to {info.get('version')}"
-                self._refresh_updater_snapshot()
+                info = self._batch_updater.ytdlp.rollback()
+                if info.get("rolled_back"):
+                    self._updater_status_text = f"Rolled back to {info.get('version')}"
+                    self._refresh_updater_snapshot()
+                else:
+                    self._updater_status_text = f"Rollback failed: {info.get('error')}"
                 self.updaterStatusTextChanged.emit()
             except Exception as exc:
                 self._updater_status_text = f"Rollback failed: {exc}"
@@ -577,6 +737,88 @@ class OperationalController(QObject):
                 self.updaterBusyChanged.emit()
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # Batch Update Actions (Check All Updates)
+    # ------------------------------------------------------------------
+
+    @Slot()
+    def checkAllUpdates(self) -> None:
+        """Debounced manual Check All Updates (bypasses 24h gate)."""
+        if self._batch_busy or self._batch_updater.is_busy:
+            return
+        self._batch_busy = True
+        self._batch_status_text = "Checking all components for updates..."
+        self.batchBusyChanged.emit()
+        self.batchStatusTextChanged.emit()
+
+        def _worker():
+            try:
+                res = self._batch_updater.check_all(bypass_rate_limit=True)
+                has_up = res.get("has_updates", False)
+                up_list = res.get("updates_list", [])
+                if res.get("error"):
+                    self._batch_status_text = f"Batch check failed: {res.get('error')}"
+                elif has_up:
+                    self._batch_status_text = f"Updates available for {len(up_list)} component(s)."
+                else:
+                    self._batch_status_text = "All components are up to date."
+
+                self._refresh_updater_snapshot()
+                self._refresh_observer_snapshot()
+                self._refresh_ubol_snapshot()
+                self.batchStatusTextChanged.emit()
+            except Exception as exc:
+                self._batch_status_text = f"Batch check error: {exc}"
+                self.batchStatusTextChanged.emit()
+            finally:
+                self._batch_busy = False
+                self.batchBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @Slot()
+    def updateAllAvailable(self) -> None:
+        """Update all components with available updates."""
+        if self._batch_busy or self._batch_updater.is_busy:
+            return
+        self._batch_busy = True
+        self._batch_status_text = "Updating available components..."
+        self.batchBusyChanged.emit()
+        self.batchStatusTextChanged.emit()
+
+        def _worker():
+            try:
+                res = self._batch_updater.update_all()
+                if res.get("success"):
+                    self._batch_status_text = "All components successfully updated."
+                else:
+                    self._batch_status_text = f"One or more updates failed: {res.get('error', 'Check logs')}"
+                self._refresh_updater_snapshot()
+                self._refresh_observer_snapshot()
+                self._refresh_ubol_snapshot()
+                self.batchStatusTextChanged.emit()
+            except Exception as exc:
+                self._batch_status_text = f"Batch update error: {exc}"
+                self.batchStatusTextChanged.emit()
+            finally:
+                self._batch_busy = False
+                self.batchBusyChanged.emit()
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    @Slot()
+    def dismissStartupDialog(self) -> None:
+        """Dismiss the combined startup update prompt (prevents popup loop for 24h)."""
+        self._startup_dialog_visible = False
+        self.startupDialogVisibleChanged.emit()
+
+    @Slot()
+    def acceptStartupDialog(self) -> None:
+        """Accept the startup update prompt and launch updateAllAvailable."""
+        self._startup_dialog_visible = False
+        self.startupDialogVisibleChanged.emit()
+        self.updateAllAvailable()
 
     # ------------------------------------------------------------------
     # In-App Application Self-Updater
@@ -613,7 +855,7 @@ class OperationalController(QObject):
 
         def _worker():
             try:
-                info = check_for_application_update("4.5")
+                info = check_for_application_update("4.5.1", store=self._store)
                 self._cached_update_info = info
                 if info is None:
                     self._app_update_status_text = "Could not parse release metadata."
@@ -626,7 +868,7 @@ class OperationalController(QObject):
                 else:
                     self._app_update_available = False
                     self._app_update_latest_version = info.latest_version
-                    self._app_update_status_text = f"VRKA 4.5 is up to date (latest v{info.latest_version})."
+                    self._app_update_status_text = f"VRKA 4.5.1 is up to date (latest v{info.latest_version})."
                 self.appUpdateAvailableChanged.emit()
                 self.appUpdateLatestVersionChanged.emit()
                 self.appUpdateReleaseNotesChanged.emit()
@@ -657,10 +899,13 @@ class OperationalController(QObject):
                         self._app_update_status_text = f"Downloading update: {pct}% ({cur // 1024} KB / {total // 1024} KB)"
                         self.appUpdateStatusTextChanged.emit()
 
-                target_exe = download_and_verify_update(self._cached_update_info, progress_cb=_prog)
+                target_exe = download_and_verify_update(
+                    self._cached_update_info,
+                    progress_cb=_prog,
+                    store=self._store,
+                )
                 self._app_update_status_text = f"Verified package ready: {target_exe.name}. Launching setup..."
                 self.appUpdateStatusTextChanged.emit()
-                # Launch verified setup executable safely
                 os.startfile(str(target_exe))
             except Exception as exc:
                 self._app_update_status_text = f"Update download failed: {exc}"
@@ -679,14 +924,17 @@ class OperationalController(QObject):
     def exportSanitizedDiagnostics(self) -> str:
         """Collect and sanitize full operational diagnostics, copying to system clipboard."""
         lines = [
-            "=== VRKA 4.5 OPERATIONAL DIAGNOSTICS ===",
+            "=== VRKA 4.5.1 OPERATIONAL DIAGNOSTICS ===",
             f"OS: {platform.system()} {platform.release()} (x64) - Python {sys.version.split()[0]}",
             f"PySide6: {app.PySide6.__version__ if hasattr(app, 'PySide6') else 'Loaded'}",
-            f"Application Version: 4.5 (Build 018)",
+            f"Application Version: 4.5.1 (Build 019)",
             f"Active Output Folder: {self._host.output_folder}",
             f"Active yt-dlp: {self._updater_current_version}",
-            f"Media Observer Health: {'OK' if self._observer_health_ok else 'Inactive/Degraded'}",
+            f"uBlock Origin Lite: {self._ubol_current_version}",
+            f"Media Observer: {self._puemos_current_version} (Health: {'OK' if self._observer_health_ok else 'Inactive/Degraded'})",
             f"Browser Session State: {self._browser_state}",
+            f"Batch Updater State: {self._batch_status_text}",
+            f"24h Gate Can Check: {self._store.can_run_auto_check()}",
             f"Active Queue Tasks: {self._bridge.activeCount} | Queued: {self._bridge.queuedCount} | Archived: {self._bridge.historyCount}",
             "",
             "=== RECENT RELEVANT EVENTS ===",

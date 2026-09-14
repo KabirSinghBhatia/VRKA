@@ -1,8 +1,43 @@
-# VRKA 4.5.0
+# VRKA 4.5.1
 
-Build 018
+Build 019
 
 ## Highlights
+- **Secure Application Self-Updater**: Automated in-app update checking, cryptographic OpenPGP release signature verification against the pinned authoritative release key, SHA-256 integrity validation, distribution type detection (Installer vs Portable), and safe staging.
+- **Independent Component Updaters**: Dedicated, decoupled updaters for yt-dlp (with official upstream signature verification and rollback), uBlock Origin Lite (MV3), and Puemos Media Observer (MV3).
+- **24-Hour Rate-Limited Startup Check**: Background check at most once per 24 hours with durable persistence in `~/.vrka/update_state.json`.
+- **Unified Component Update Prompt**: Non-blocking modal overlay showing all available updates with one-click batch installation and non-nagging "Later" dismissal.
+- **Concurrency & Debounce Protection**: Background worker locks preventing simultaneous update checks or race conditions.
+- **Full Test Suite Coverage**: 156 automated tests with 100% pass rate.
+
+## Updates & Maintenance
+- **yt-dlp**: Independent checks against upstream GitHub releases with `SHA2-256SUMS` and `SHA2-256SUMS.sig` OpenPGP verification (signed by pinned key `57CF65933B5A7581`), binary execution test, and safe rollback via `.yt-dlp.previous.exe`.
+- **uBlock Origin Lite**: Verified Manifest V3 distribution for Microsoft Edge WebView2 / Chromium runtime with SHA-256 integrity checks.
+- **Puemos Media Observer**: Verified Manifest V3 media detection extension with SHA-256 integrity checks.
+- **Application Self-Updater**: Strict semantic versioning, downgrade rejection, SHA-256 checksum matching, and detached OpenPGP signature verification with pinned project key `71165A658B3A8612AC2568C6D519380BEBA1B9F7`.
+
+## Downloading & Fallback
+- Intelligent yt-dlp failure classifier routing recoverable errors (flashvars, KVS, client-side/embedded players, bot challenges, and webpage HTTP blocks) to WebView2 Browser Fallback.
+- Anti-recursion protection guaranteeing browser fallback runs at most once per logical task.
+- Multi-factor quality selection evaluating bitrate, resolution, and frame rate without synthetic codec bias.
+
+## Security
+- Pinned OpenPGP release signatures and SHA-256 verification across application and component assets.
+- Fail-closed download staging in temporary `.downloading` containers.
+- Automated credential and local path scrubbing in logs and exported diagnostics.
+
+---
+
+## Historical Releases
+
+### VRKA 4.5.0 (Build 018)
+
+- **Version**: 4.5.0 (Build 018)
+- **Release Date**: 2026-09-12
+- **Target Platform**: Windows 10/11 x64
+- **License**: GPL-3.0-or-later
+
+#### Highlights in 4.5.0
 - Modern Qt 6 QML desktop interface with custom title bar, native window controls, and floating sidebar.
 - Configurable download destination modes: remember folder or prompt every time.
 - Font preference switcher between Monospace and System Default.
@@ -10,40 +45,6 @@ Build 018
 - Supported component updates for yt-dlp, uBlock Origin Lite, and Puemos.
 - One-click browser session and cache clearing for privacy.
 - End-to-end cryptographic release verification using pinned OpenPGP signing keys.
-
-## Downloading
-- Multi-factor quality ranking prioritizing higher-bitrate and higher-fidelity streams without arbitrary codec bias.
-- Audio extraction supporting MP3 (320, 256, 192, 128 kbps), Opus, and uncompressed WAV.
-- Single-worker FIFO task queue with persistent task state and crash recovery.
-- Advanced download options including playlist index ranges, subtitle language selection, precision media trimming, and custom HTTP headers.
-- Optional custom yt-dlp command-line arguments protected by a safety confirmation prompt.
-
-## Browser Fallback
-- Automated passive fallback for sites requiring browser-assisted stream observation.
-- Isolated WebView2 session equipped with uBlock Origin Lite ad and tracker protection.
-- Passive detection of HLS master playlists, DASH manifests, and direct MP4 streams with automatic handoff to the download engine.
-- Complete session data clearing available directly in Settings.
-
-## Updates
-- Application Updates: Check, stage, and install official VRKA updates directly within the application.
-- Component Updates: Independent update checks and management for yt-dlp, uBlock Origin Lite rulesets, and the Puemos media observer.
-- Cryptographic verification: Updates are verified using SHA-256 digests over secure HTTPS connections.
-
-## Security
-- RFC 7230 header validation: Custom HTTP headers are strictly validated against token grammar, rejecting CRLF and null-byte injection attacks.
-- Sensitive data scrubbing: Authentication tokens, cookies, signed query parameters, and private file paths are automatically redacted from activity logs and diagnostic exports.
-- Cryptographic release verification: Official releases are signed with the project's authoritative 4096-bit OpenPGP release signing key (fingerprint `71165A658B3A8612AC2568C6D519380BEBA1B9F7`).
-
-## Known Limitations
-- DRM-protected streams (Widevine, FairPlay, PlayReady) are not supported.
-- Complex interactive web players may require brief manual user playback before streams become detectable.
-- Downloads run in a sequential single-worker queue.
-- Supported desktop platform is Windows 10 and 11 (x64).
-- OpenPGP release signatures and current Windows SmartScreen/code-signing limitations: official packages are signed with OpenPGP rather than commercial Authenticode certificates. Verify SHA-256 digests against `SHA256SUMS.txt`.
-
----
-
-## Historical Releases
 
 ### VRKA 4.0.1 (Build 017)
 

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.5.1] - 2026-09-14 (Build 019)
+
+### Added
+- **Secure In-App Application Self-Updater**: Full semantic versioning, downgrade rejection, installation type detection (`Setup.exe` vs `Portable.zip`/`Portable.exe`), OpenPGP release signature verification with pinned authoritative key (`71165A658B3A8612AC2568C6D519380BEBA1B9F7`), SHA-256 package integrity validation, and fail-closed atomic staging in `.downloading` temporary containers.
+- **Independent Component Updaters**:
+  - **yt-dlp**: Official upstream release tracking, `SHA2-256SUMS` and `SHA2-256SUMS.sig` OpenPGP verification (signed by pinned key `57CF65933B5A7581`), binary execution validation via `validate_ytdlp_binary()`, and atomic activation with `.yt-dlp.previous.exe` rollback.
+  - **uBlock Origin Lite**: Official upstream checks, Manifest V3 structure and SHA-256 validation for Microsoft WebView2/Chromium runtime.
+  - **Puemos Media Observer**: Official upstream checks, Manifest V3 background service worker and SHA-256 validation.
+- **Automated 24-Hour Rate-Limited Startup Check**: Durable persistence in `~/.vrka/update_state.json` ensuring background checks run at most once per 24 hours.
+- **Combined Update Prompt (`CombinedUpdateDialog.qml`)**: Single non-blocking modal overlay presenting all available component updates with "Update Now" and "Later" options, preventing recurring popup loops.
+- **Concurrency Protection & Debouncing**: Thread-safe locks preventing duplicate checks or simultaneous downloads on rapid user interactions.
+
+### Changed
+- Refactored update architecture into GUI-independent `vrka_core/updater_state.py` and `vrka_core/component_updater.py`.
+- Modernized Settings page with batch update trigger ("Check All Updates") and per-component installation controls.
+- Expanded automated regression test suite to 156 tests with 100% pass rate.
+
+---
+
 ## [4.5.0] - 2026-09-12 (Build 018)
 
 ### Added
