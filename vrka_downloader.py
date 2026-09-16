@@ -144,15 +144,16 @@ def _staging_bytes(path):
     return total
 
 
-APP_DATA_DIR = Path.home() / ".vrka"
+from vrka_platform import get_platform_driver
+
+_PLATFORM = get_platform_driver()
+
+APP_DATA_DIR = _PLATFORM.get_app_data_dir()
 LEGACY_APP_DATA_DIR = Path.home() / ".seal_desktop"
 HISTORY_FILE = APP_DATA_DIR / "history.json"
 SETTINGS_FILE = APP_DATA_DIR / "settings.json"
 
-LOCAL_APP_DATA = Path(
-    os.environ.get("LOCALAPPDATA")
-    or (Path.home() / "AppData" / "Local" if os.name == "nt" else APP_DATA_DIR)
-)
+LOCAL_APP_DATA = _PLATFORM.get_local_cache_dir()
 RUNTIME_DIR = LOCAL_APP_DATA / "VRKA" / "runtime"
 RUNTIME_STATE_FILE = RUNTIME_DIR / "runtime.json"
 BROWSER_SESSION_DIR = LOCAL_APP_DATA / "VRKA" / "browser-session"
@@ -628,45 +629,8 @@ def _register_bundled_fonts():
         return False
 
     try:
-        if os.name == "nt":
-            add_font = ctypes.windll.gdi32.AddFontResourceExW
-            add_font.argtypes = (ctypes.c_wchar_p, ctypes.c_uint, ctypes.c_void_p)
-            add_font.restype = ctypes.c_int
-            loaded = all(add_font(str(path), 0x10, None) > 0 for path in font_paths)
-        elif platform.system() == "Darwin":
-            core_foundation = ctypes.cdll.LoadLibrary(
-                "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation"
-            )
-            core_text = ctypes.cdll.LoadLibrary(
-                "/System/Library/Frameworks/CoreText.framework/CoreText"
-            )
-            make_url = core_foundation.CFURLCreateFromFileSystemRepresentation
-            make_url.argtypes = (
-                ctypes.c_void_p, ctypes.c_char_p, ctypes.c_long, ctypes.c_bool,
-            )
-            make_url.restype = ctypes.c_void_p
-            release = core_foundation.CFRelease
-            release.argtypes = (ctypes.c_void_p,)
-            register_url = core_text.CTFontManagerRegisterFontsForURL
-            register_url.argtypes = (
-                ctypes.c_void_p, ctypes.c_uint, ctypes.POINTER(ctypes.c_void_p),
-            )
-            register_url.restype = ctypes.c_bool
-            results = []
-            for path in font_paths:
-                encoded = os.fsencode(path)
-                url = make_url(None, encoded, len(encoded), False)
-                if not url:
-                    results.append(False)
-                    continue
-                error = ctypes.c_void_p()
-                try:
-                    results.append(bool(register_url(url, 1, ctypes.byref(error))))
-                finally:
-                    release(url)
-            loaded = all(results)
-        else:
-            loaded = False
+        loaded = _PLATFORM.register_custom_fonts(font_paths)
+        if not loaded and not _PLATFORM.is_windows and not _PLATFORM.is_macos:
             report["error"] = "Dynamic bundled-font registration is unsupported on this platform."
     except Exception as exc:
         loaded = False
@@ -948,12 +912,7 @@ def open_path(path):
     try:
         if not path:
             return
-        if platform.system() == "Windows":
-            os.startfile(path)  # noqa
-        elif platform.system() == "Darwin":
-            subprocess.run(["open", path])
-        else:
-            subprocess.run(["xdg-open", path])
+        _PLATFORM.open_path(path)
     except Exception:
         pass
 
@@ -987,11 +946,7 @@ def validate_ffmpeg_binary(path, expected_version=None):
         return False, "", "The ffmpeg binary is missing or unexpectedly small."
     if not _valid_windows_executable_header(candidate):
         return False, "", "The candidate is not a valid Windows executable."
-    if os.name != "nt":
-        try:
-            candidate.chmod(candidate.stat().st_mode | 0o755)
-        except OSError:
-            pass
+    _PLATFORM.ensure_executable(candidate)
     try:
         res = _run_hidden([str(candidate), "-version"], timeout=20)
         if res.returncode != 0:
@@ -1011,11 +966,7 @@ def validate_ffprobe_binary(path, expected_version=None):
         return False, "", "The ffprobe binary is missing or unexpectedly small."
     if not _valid_windows_executable_header(candidate):
         return False, "", "The candidate is not a valid Windows executable."
-    if os.name != "nt":
-        try:
-            candidate.chmod(candidate.stat().st_mode | 0o755)
-        except OSError:
-            pass
+    _PLATFORM.ensure_executable(candidate)
     try:
         res = _run_hidden([str(candidate), "-version"], timeout=20)
         if res.returncode != 0:
@@ -1034,7 +985,7 @@ def resolve_ffmpeg_location():
     Prefers the local managed runtime in %LOCALAPPDATA%\\VRKA\\runtime (or ~/.vrka/runtime),
     then bundled beside the application, then Python static-ffmpeg runtime, then system/Homebrew,
     otherwise returns None."""
-    exe_suffix = ".exe" if os.name == "nt" else ""
+    exe_suffix = ".exe" if _PLATFORM.is_windows else ""
     ffmpeg_active = RUNTIME_DIR / f"ffmpeg{exe_suffix}"
     ffprobe_active = RUNTIME_DIR / f"ffprobe{exe_suffix}"
     if ffmpeg_active.is_file() and ffprobe_active.is_file():
@@ -1043,8 +994,8 @@ def resolve_ffmpeg_location():
         if valid_f and valid_p:
             return str(RUNTIME_DIR)
 
-    exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
-    probe_name = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+    exe_name = _PLATFORM.get_binary_name("ffmpeg")
+    probe_name = _PLATFORM.get_binary_name("ffprobe")
 
     # Bundled application candidates
     if getattr(sys, "frozen", False):
@@ -1082,17 +1033,15 @@ def resolve_ffmpeg_location():
     except Exception:
         pass
 
-    # macOS / Apple Silicon Homebrew locations
-    if platform.system() == "Darwin":
-        for brew_dir in ("/opt/homebrew/bin", "/usr/local/bin"):
-            if (
-                os.path.isfile(os.path.join(brew_dir, "ffmpeg"))
-                and os.path.isfile(os.path.join(brew_dir, "ffprobe"))
-            ):
-                valid_f, _, _ = validate_ffmpeg_binary(os.path.join(brew_dir, "ffmpeg"))
-                valid_p, _, _ = validate_ffprobe_binary(os.path.join(brew_dir, "ffprobe"))
-                if valid_f and valid_p:
-                    return brew_dir
+    # Platform tool search paths (e.g. macOS Homebrew, Linux /usr/local/bin)
+    for tool_dir in _PLATFORM.get_system_tool_search_paths():
+        cand_ffmpeg = os.path.join(str(tool_dir), exe_name)
+        cand_ffprobe = os.path.join(str(tool_dir), probe_name)
+        if os.path.isfile(cand_ffmpeg) and os.path.isfile(cand_ffprobe):
+            valid_f, _, _ = validate_ffmpeg_binary(cand_ffmpeg)
+            valid_p, _, _ = validate_ffprobe_binary(cand_ffprobe)
+            if valid_f and valid_p:
+                return str(tool_dir)
 
     # System PATH discovery
     sys_ffmpeg = shutil.which("ffmpeg")
@@ -1272,15 +1221,8 @@ def ensure_ffmpeg_runtime(progress_callback=None):
         _replace_file_safe(staging_ffmpeg, active_ffmpeg)
         _replace_file_safe(staging_ffprobe, active_ffprobe)
 
-        if os.name != "nt":
-            try:
-                active_ffmpeg.chmod(active_ffmpeg.stat().st_mode | 0o755)
-            except OSError:
-                pass
-            try:
-                active_ffprobe.chmod(active_ffprobe.stat().st_mode | 0o755)
-            except OSError:
-                pass
+        _PLATFORM.ensure_executable(active_ffmpeg)
+        _PLATFORM.ensure_executable(active_ffprobe)
 
         _save_runtime_state(
             ffmpeg_version=ver_f,
@@ -1307,7 +1249,7 @@ def _find_aria2c():
     """Locate an aria2c binary for the optional transport backend: a bundled
     copy next to the app first, then the system PATH.  Returns the path or
     ``None`` (backend stays dormant)."""
-    exe_name = "aria2c.exe" if os.name == "nt" else "aria2c"
+    exe_name = _PLATFORM.get_binary_name("aria2c")
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
         bundled = os.path.join(exe_dir, "aria2c_bin", exe_name)
@@ -1322,7 +1264,7 @@ def _find_aria2c():
 def get_bundled_deno_dir():
     """Return the bundled Deno runtime directory when packaging included it.
     yt-dlp uses Deno for modern YouTube challenge solving."""
-    executable = "deno.exe" if os.name == "nt" else "deno"
+    executable = _PLATFORM.get_binary_name("deno")
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
         candidate = os.path.join(exe_dir, "deno_bin")
@@ -1335,13 +1277,13 @@ def get_bundled_deno_dir():
 
 
 def configure_bundled_runtime_path():
-    """Make packaged Deno and Apple Silicon Homebrew tools visible to this process
+    """Make packaged Deno and platform system tools visible to this process
     and any self-invoked custom-command process without changing the user's permanent PATH."""
-    if platform.system() == "Darwin":
-        for extra_path in ("/opt/homebrew/bin", "/usr/local/bin"):
-            path_parts = os.environ.get("PATH", "").split(os.pathsep)
-            if extra_path not in path_parts and os.path.isdir(extra_path):
-                os.environ["PATH"] = extra_path + os.pathsep + os.environ.get("PATH", "")
+    for extra_path in _PLATFORM.get_system_tool_search_paths():
+        extra_str = str(extra_path)
+        path_parts = os.environ.get("PATH", "").split(os.pathsep)
+        if extra_str not in path_parts and os.path.isdir(extra_str):
+            os.environ["PATH"] = extra_str + os.pathsep + os.environ.get("PATH", "")
     deno_dir = get_bundled_deno_dir()
     if not deno_dir:
         return None
@@ -1353,11 +1295,10 @@ def configure_bundled_runtime_path():
 
 def configure_windows_app_identity():
     """Give Windows a stable identity for taskbar grouping and Alt+Tab art."""
-    if platform.system() != "Windows":
+    if not _PLATFORM.is_windows:
         return False
     try:
-        import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("VRKA.Downloader")
+        _PLATFORM.configure_app_identity("VRKA.Downloader")
         return True
     except Exception:
         _write_crash_log("Windows AppUserModelID setup failed (non-fatal):\n" + traceback.format_exc())
@@ -1475,7 +1416,7 @@ _YTDLP_UPDATE_LOCK = threading.Lock()
 
 
 def _runtime_paths():
-    suffix = ".exe" if os.name == "nt" else ""
+    suffix = ".exe" if _PLATFORM.is_windows else ""
     return {
         "active": RUNTIME_DIR / f"yt-dlp{suffix}",
         "previous": RUNTIME_DIR / f"yt-dlp.previous{suffix}",
@@ -1501,16 +1442,14 @@ def _save_runtime_state(**changes):
 
 
 def _run_hidden(command, timeout=30):
-    kwargs = {}
-    if os.name == "nt":
-        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+    kwargs = _PLATFORM.get_subprocess_kwargs(hidden=True)
     return subprocess.run(
         list(command), capture_output=True, text=True, timeout=timeout, **kwargs
     )
 
 
 def _valid_windows_executable_header(path):
-    if os.name != "nt":
+    if not _PLATFORM.is_windows:
         return True
     try:
         with open(path, "rb") as file_handle:
@@ -1526,11 +1465,7 @@ def validate_ytdlp_binary(path, expected_version=None):
         return False, "", "The downloaded file is missing or unexpectedly small."
     if not _valid_windows_executable_header(candidate):
         return False, "", "The downloaded file is not a Windows executable."
-    if os.name != "nt":
-        try:
-            candidate.chmod(candidate.stat().st_mode | 0o755)
-        except OSError:
-            pass
+    _PLATFORM.ensure_executable(candidate)
     try:
         version_result = _run_hidden([str(candidate), "--version"], timeout=20)
         version = (version_result.stdout or "").strip().splitlines()[0]
@@ -1620,7 +1555,7 @@ def fetch_ytdlp_release(channel=DEFAULT_YTDLP_CHANNEL):
         for item in payload.get("assets", [])
         if item.get("name") and item.get("browser_download_url")
     }
-    binary_name = "yt-dlp.exe" if os.name == "nt" else "yt-dlp"
+    binary_name = _PLATFORM.get_binary_name("yt-dlp")
     binary_url = assets.get(binary_name)
     checksum_url = assets.get("SHA2-256SUMS")
     version = str(payload.get("tag_name") or "").lstrip("v")
@@ -1756,7 +1691,7 @@ def rollback_ytdlp_update():
     valid, version, reason = validate_ytdlp_binary(previous)
     if not valid:
         raise ValueError(f"The rollback build is invalid: {reason}")
-    displaced = RUNTIME_DIR / (".yt-dlp.displaced.exe" if os.name == "nt" else ".yt-dlp.displaced")
+    displaced = RUNTIME_DIR / _PLATFORM.get_binary_name(".yt-dlp.displaced")
     try:
         if displaced.exists():
             displaced.unlink()
@@ -2149,6 +2084,18 @@ def _browser_cookie_rows(cookie_objects, page_url):
     rows = []
     fallback_domain = urllib.parse.urlparse(page_url).hostname or ""
     for cookie in cookie_objects or []:
+        if isinstance(cookie, dict):
+            domain = str(cookie.get("domain") or fallback_domain)
+            rows.append({
+                "domain": domain,
+                "include_subdomains": domain.startswith("."),
+                "path": str(cookie.get("path") or "/"),
+                "secure": bool(cookie.get("secure")),
+                "expires": int(cookie.get("expires") or 0),
+                "name": str(cookie.get("name") or ""),
+                "value": str(cookie.get("value") or ""),
+            })
+            continue
         try:
             morsels = list(cookie.values())
         except Exception:
@@ -2267,12 +2214,8 @@ def _find_webview2_runtime_folder():
     component).  Returns the folder containing ``msedgewebview2.exe`` or
     ``None``.  Evergreen runtimes are preferred because they can host browser
     extensions."""
-    if os.name != "nt":
-        return None
-    for folder in _webview2_runtime_candidate_dirs():
-        if folder and os.path.isfile(os.path.join(folder, "msedgewebview2.exe")):
-            return folder
-    return None
+    from vrka_platform.browser.webview2 import find_webview2_runtime_folder
+    return find_webview2_runtime_folder()
 
 
 UBOL_EXTENSION_DIRNAME = "ubol"
@@ -2830,20 +2773,9 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
         # ES6 capture scripts), point pywebview at the discovered runtime
         # folder explicitly.  Harmless when the runtime is already registered
         # (the setting is only consumed as the browser executable folder).
-        try:
-            if not webview.settings["WEBVIEW2_RUNTIME_PATH"] and os.name == "nt":
-                _runtime_folder = _find_webview2_runtime_folder()
-                if _runtime_folder:
-                    webview.settings["WEBVIEW2_RUNTIME_PATH"] = _runtime_folder
-        except (KeyError, TypeError):
-            pass
+        browser_driver = _PLATFORM.get_browser_verification_driver()
+        browser_driver.prepare_environment()
 
-        # Generic first-line content filtering (uBlock Origin Lite) requires
-        # browser extensions, which require an explicitly-created WebView2
-        # environment with extensions enabled BEFORE the window exists.
-        # Patch pywebview and resolve the bundled extension now; installation
-        # into the profile happens in the guard below.  Everything degrades
-        # gracefully when extensions are unavailable.
         _patch_pywebview_extension_support()
         ubol_dir = _prepare_ubol_extension_dir()
         popup_stats["ubol_dir"] = ubol_dir
@@ -2853,13 +2785,7 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
         observer_info = _prepare_media_observer()
         popup_stats["observer"] = observer_info
 
-        # On Windows, the window opens on a blank page; the requested URL is loaded only
-        # after the session guard (and uBOL, when available) is ready, so the
-        # target site's first document request runs under the filter.
-        # On macOS / non-Windows, pywebview uses native Cocoa WKWebView which loads
-        # start_url directly and immediately without blank-screen delay.
-        is_windows = (os.name == "nt")
-        initial_url = "about:blank" if is_windows else start_url
+        initial_url = browser_driver.get_initial_url(start_url)
         window = webview.create_window(
             "VRKA Browser Verification — close this window when the media is ready",
             url=initial_url,
@@ -2879,7 +2805,7 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
             active.  No ad/popup/tracker host lists, resource rules, or DOM
             cosmetics exist here.
             """
-            if popup_stats["native_guard_installed"] or os.name != "nt":
+            if popup_stats["native_guard_installed"] or not _PLATFORM.is_windows:
                 return popup_stats["native_guard_installed"]
             try:
                 browser_view = window.gui.BrowserView.instances.get(window.uid)
@@ -3088,7 +3014,7 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
         # On macOS Cocoa, hooking request_sent causes cocoa.py to cancel all subframe
         # requests (including Cloudflare verification iframes) and reload them into the
         # root window, breaking anti-bot challenges and causing an immediate blank white screen.
-        if is_windows:
+        if _PLATFORM.is_windows:
             window.events.request_sent._should_lock = True
             window.events.response_received._should_lock = True
             window.events.request_sent += capture_request
@@ -3145,70 +3071,16 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
         media_capture_holder = {"capture": None, "error": ""}
 
         def start_media_capture():
-            """Ensure bounded media body capture is attached to the running
-            protected browser.
-
-            Capture is attached SESSION-WIDE (at first use, before the
-            player's first fetch) because fMP4 init fragments are typically
-            served from the HTTP cache on later loads and would otherwise be
-            invisible to the response events forever.  The captured bytes
-            are spilled to disk under a session key and are deleted with the
-            episode unless the browser-context transfer consumes them.  The
-            TRANSFER itself still activates only after ExternalReplayRejected
-            - capture is a passive, bounded sensor of the session the user
-            is already watching."""
+            """Ensure bounded media body capture is attached to the running protected browser."""
             if media_capture_holder["capture"] is not None:
                 return True
-            if os.name != "nt":
-                return False
-            try:
-                from System import Action
-                from vrka_core.browser_capture import MediaBodyCapture
-                browser_view = window.gui.BrowserView.instances.get(window.uid)
-                if browser_view is None:
-                    media_capture_holder["error"] = "browser view unavailable"
-                    return False
-                objects_dir = result_path.parent / (
-                    "media-objects-" + result_path.stem.replace("browser-", ""))
-                holder = {"capture": None, "error": ""}
-
-                def attach_on_ui_thread():
-                    try:
-                        browser = browser_view.browser
-                        if browser.webview is None:
-                            holder["error"] = "webview control not ready"
-                            return
-                        core = browser.webview.CoreWebView2
-                        if core is None:
-                            holder["error"] = "CoreWebView2 not ready"
-                            return
-                        capture = MediaBodyCapture(core, objects_dir)
-                        if capture.attach():
-                            holder["capture"] = capture
-                        else:
-                            holder["error"] = "attach failed"
-                    except Exception as exc:
-                        holder["error"] = f"{type(exc).__name__}: {exc}"
-
-                if browser_view.InvokeRequired:
-                    browser_view.Invoke(Action(attach_on_ui_thread))
-                else:
-                    attach_on_ui_thread()
-                if holder["capture"] is None:
-                    media_capture_holder["error"] = (
-                        holder["error"] or "attach produced no capture")
-                    return False
-                media_capture_holder["capture"] = holder["capture"]
-                return True
-            except Exception as exc:
-                media_capture_holder["error"] = f"{type(exc).__name__}: {exc}"
-                return False
+            return browser_driver.start_media_capture(window, result_path, media_capture_holder)
 
         def ensure_session_capture_when_ready():
             """Attach the session-wide capture as soon as CoreWebView2
             exists, before the requested page is navigated, so the player's
             very first fetch (init fragments included) is observable."""
-            if os.name != "nt" or not protected:
+            if not _PLATFORM.is_windows or not protected:
                 return
             deadline = time.time() + 90
             while time.time() < deadline and not session_done.is_set():
@@ -3451,6 +3323,9 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
                 # it, so a mid-update exception (e.g. a slow cookie API call)
                 # can never leave the payload half-old/half-new with stale
                 # fields (such as a missing uBOL extension record).
+                raw_cookies = browser_driver.get_all_cookies(window)
+                if raw_cookies is None:
+                    raw_cookies = window.get_cookies()
                 new_payload = {
                     "ok": True,
                     "page_url": page_url,
@@ -3458,7 +3333,7 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
                     "user_agent": str(data.get("userAgent") or ""),
                     "referer": page_url,
                     "origin": origin,
-                    "cookies": _browser_cookie_rows(window.get_cookies(), page_url),
+                    "cookies": _browser_cookie_rows(raw_cookies, page_url),
                     "media_candidates": candidates,
                     "autoplay_widget_page": bool(widget_cluster["seen"]),
                     "view_size": {"w": view_w, "h": view_h},
@@ -3808,6 +3683,7 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
             ).start()
 
         window.events.loaded += install_observer
+        window.events.closing._should_lock = True
         window.events.closing += handle_closing
         if protected:
             start_stdin_worker()
@@ -3821,31 +3697,7 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
         # design (each attempt is exception-safe; navigation proceeds even if
         # the guard or uBOL never becomes ready).
         def navigate_to_requested_page():
-            try:
-                browser_view = window.gui.BrowserView.instances.get(window.uid)
-                if browser_view is None:
-                    window.load_url(start_url)
-                    return
-                if os.name == "nt":
-                    from System import Action
-
-                    def _go():
-                        try:
-                            window.load_url(start_url)
-                        except Exception:
-                            pass
-
-                    if browser_view.InvokeRequired:
-                        browser_view.Invoke(Action(_go))
-                    else:
-                        _go()
-                else:
-                    window.load_url(start_url)
-            except Exception:
-                try:
-                    window.load_url(start_url)
-                except Exception:
-                    pass
+            browser_driver.navigate_to_target(window, start_url)
 
         def install_session_guard_when_ready():
             deadline = time.time() + 90
@@ -3877,42 +3729,26 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
                     time.sleep(UBOL_DNR_WARMUP_SECONDS)
             navigate_to_requested_page()
 
-        if is_windows:
+        if _PLATFORM.is_windows:
             threading.Thread(
                 target=install_session_guard_when_ready,
                 name="vrka-session-guard", daemon=True,
             ).start()
         else:
             ubol_ready.set()
-            try:
-                import webview.platforms.cocoa as cocoa
-
-                def _block_cocoa_popup(self, webview, config, action, features):
-                    req_url = ""
-                    try:
-                        req_url = str(action.request().URL().absoluteString() or "")
-                    except Exception:
-                        pass
-                    if req_url:
-                        _append_bounded(popup_stats["blocked_urls"], req_url)
-                        popup_stats["blocked"] += 1
-                    return None
-
-                cocoa.BrowserView.BrowserDelegate.webView_createWebViewWithConfiguration_forNavigationAction_windowFeatures_ = (
-                    _block_cocoa_popup
-                )
-                popup_stats["native_guard_installed"] = True
-                popup_stats["guard_error"] = ""
-            except Exception as cocoa_exc:
-                popup_stats["guard_error"] = f"Cocoa popup guard: {cocoa_exc}"
-
+            browser_driver.install_security_guards(window, popup_stats)
+            browser_driver.install_media_observer(
+                window,
+                enqueue_observation,
+                playable_callback=lambda _url: capture_session(),
+            )
 
         start_kwargs = {
             "debug": False,
             "private_mode": False,
             "storage_path": str(profile_path),
         }
-        if is_windows:
+        if _PLATFORM.is_windows:
             start_kwargs["gui"] = "edgechromium"
 
         webview.start(**start_kwargs)
@@ -3972,9 +3808,7 @@ def sanitize_command_for_log(command):
             continue
         matched = next((option for option in sensitive_options if text.startswith(option + "=")), None)
         sanitized.append(f"{matched}=<redacted>" if matched else text)
-    if os.name == "nt":
-        return subprocess.list2cmdline(sanitized)
-    return shlex.join(sanitized)
+    return _PLATFORM.format_command_for_logging(sanitized)
 
 def control_value(owner, attribute, default=None):
     """Read a UI control defensively for migration/tests and partial startup recovery."""
@@ -4123,8 +3957,7 @@ def _standard_ytdlp_arguments(
         "-P", f"temp:{opts.get('_staging_dir') or STAGING_DIR / str(uuid.uuid4())}",
         "-o", template,
     ]
-    if os.name == "nt":
-        args.append("--windows-filenames")
+    args.extend(_PLATFORM.get_ytdlp_platform_args())
 
     if opts.get("is_playlist"):
         if str(opts.get("playlist_start") or "").isdigit():
@@ -4393,8 +4226,7 @@ def build_custom_ytdlp_command(task, output_folder):
         "-P", f"temp:{opts.get('_staging_dir') or STAGING_DIR / str(uuid.uuid4())}",
         "-o", validate_output_template(opts.get("output_template")),
     ]
-    if os.name == "nt":
-        command.append("--windows-filenames")
+    command.extend(_PLATFORM.get_ytdlp_platform_args())
     if opts.get("allow_remote_components", True) and not _has_cli_option(
         arguments, "--remote-components"
     ):
@@ -4627,23 +4459,9 @@ class VRKADownloader:
 
     def _terminate_process_tree(self, process):
         """Stop only the tracked helper tree; never scan or kill unrelated browsers."""
-        if process is None or process.poll() is not None:
+        if process is None:
             return
-        try:
-            if os.name == "nt":
-                subprocess.run(
-                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                    capture_output=True,
-                    timeout=10,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-            else:
-                process.terminate()
-        except Exception:
-            try:
-                process.terminate()
-            except Exception:
-                pass
+        _PLATFORM.terminate_process_tree(process)
     def _on_close(self):
         pass
 
@@ -5668,13 +5486,11 @@ class VRKADownloader:
         ffprobe_exe = "ffprobe"
         ffmpeg_dir = get_bundled_ffmpeg_dir()
         if ffmpeg_dir:
-            candidate = os.path.join(ffmpeg_dir, "ffprobe.exe" if os.name == "nt" else "ffprobe")
+            candidate = os.path.join(ffmpeg_dir, _PLATFORM.get_binary_name("ffprobe"))
             if os.path.isfile(candidate):
                 ffprobe_exe = candidate
         try:
-            creation_kwargs = {}
-            if os.name == "nt":
-                creation_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            creation_kwargs = _PLATFORM.get_subprocess_kwargs(hidden=True)
             result = subprocess.run(
                 [ffprobe_exe, "-v", "error", "-show_entries",
                  "format=format_name,duration:stream=codec_type,codec_name",
@@ -5856,9 +5672,7 @@ class VRKADownloader:
         if cancel_event.is_set():
             raise DownloadCanceled()
         _backend, command = build_candidate_probe_command(task, candidate)
-        creation_kwargs = {}
-        if os.name == "nt":
-            creation_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        creation_kwargs = _PLATFORM.get_subprocess_kwargs(hidden=True)
         proc = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -5942,9 +5756,7 @@ class VRKADownloader:
             f"[runtime] yt-dlp {backend.version} ({backend.source})",
         ))
         self.ui_queue.put(("log", f"[yt-dlp] {sanitize_command_for_log(command)}"))
-        creation_kwargs = {}
-        if os.name == "nt":
-            creation_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        creation_kwargs = _PLATFORM.get_subprocess_kwargs(hidden=True)
         proc = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -6316,15 +6128,13 @@ class VRKADownloader:
         not as a failure."""
         if not path or not os.path.isfile(path):
             return None
-        ffprobe_exe = "ffprobe"
+        ffprobe_exe = _PLATFORM.get_binary_name("ffprobe")
         if ffmpeg_dir:
-            candidate = os.path.join(ffmpeg_dir, "ffprobe.exe" if os.name == "nt" else "ffprobe")
+            candidate = os.path.join(ffmpeg_dir, _PLATFORM.get_binary_name("ffprobe"))
             if os.path.isfile(candidate):
                 ffprobe_exe = candidate
         try:
-            creation_kwargs = {}
-            if os.name == "nt":
-                creation_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            creation_kwargs = _PLATFORM.get_subprocess_kwargs(hidden=True)
             result = subprocess.run(
                 [ffprobe_exe, "-v", "error", "-select_streams", "v:0",
                  "-show_entries", "stream=height", "-of", "csv=p=0", path],
@@ -6345,9 +6155,9 @@ class VRKADownloader:
         trimmed_path = f"{base} [trimmed]{ext}"
 
         ffmpeg_dir = get_bundled_ffmpeg_dir()
-        ffmpeg_exe = "ffmpeg"
+        ffmpeg_exe = _PLATFORM.get_binary_name("ffmpeg")
         if ffmpeg_dir:
-            candidate = os.path.join(ffmpeg_dir, "ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+            candidate = os.path.join(ffmpeg_dir, _PLATFORM.get_binary_name("ffmpeg"))
             if os.path.isfile(candidate):
                 ffmpeg_exe = candidate
 
@@ -6360,9 +6170,7 @@ class VRKADownloader:
         end_display = end_sec if end_sec is not None else "end"
         self.ui_queue.put(("log", f"[{task.title or task.url}] Trimming locally: {start_sec}s to {end_display}"))
 
-        creation_kwargs = {}
-        if os.name == "nt":
-            creation_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        creation_kwargs = _PLATFORM.get_subprocess_kwargs(hidden=True)
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, **creation_kwargs)
@@ -6819,7 +6627,7 @@ def restore_frozen_cli_streams():
     is attached when one exists, CONOUT$/CONIN$ are used as console fallback,
     and devnull is the final fallback so callers always get writable streams.
     """
-    if not is_frozen() or os.name != "nt":
+    if not is_frozen() or not _PLATFORM.is_windows:
         return
     import msvcrt
 

@@ -56,7 +56,8 @@ _APP_UPDATE_LOCK = threading.Lock()
 
 def is_installer_installation() -> bool:
     """Detect whether current running instance was installed by Inno Setup installer."""
-    if sys.platform != "win32":
+    from vrka_platform import get_platform_driver
+    if not get_platform_driver().is_windows:
         return False
     try:
         exe_path = Path(sys.executable).resolve()
@@ -204,8 +205,11 @@ def check_for_application_update(
         elif "sha256" in name.lower() or name.lower() == "sha256sums.txt":
             sha256_url = durl
 
+    from vrka_platform import get_platform_driver
+    driver = get_platform_driver()
+
     # Select appropriate binary distribution asset
-    if sys.platform == "darwin":
+    if driver.is_macos:
         dist_type = "dmg"
         for a in assets:
             name = str(a.get("name") or "")
@@ -250,7 +254,7 @@ def check_for_application_update(
                     break
 
     # Fallback to Setup.exe on Windows if portable was not found
-    if not asset_url and sys.platform == "win32":
+    if not asset_url and driver.is_windows:
         for a in assets:
             name = str(a.get("name") or "")
             durl = str(a.get("browser_download_url") or "")
@@ -312,10 +316,10 @@ def download_and_verify_update(
         raise ValueError("No valid release installer asset found in update metadata")
 
     if staging_dir is None:
-        if sys.platform == "darwin":
+        if get_platform_driver().is_macos:
             staging_dir = Path.home() / ".vrka" / "updates"
         else:
-            local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+            local_app_data = get_platform_driver().get_local_cache_dir()
             staging_dir = local_app_data / "VRKA" / "updates"
 
     staging_dir.mkdir(parents=True, exist_ok=True)

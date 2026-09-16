@@ -41,7 +41,10 @@ for package_name in ("curl_cffi", "yt_dlp_ejs", "webview", "pgpy", "cryptography
     binaries += package_binaries
     hiddenimports += package_hiddenimports
 # yt_dlp is now lazy in vrka_downloader (import inside _ensure_yt_dlp) — ensure PyInstaller still bundles it.
-hiddenimports += ["yt_dlp", "yt_dlp.extractor", "yt_dlp.version"]
+hiddenimports += [
+    "yt_dlp", "yt_dlp.extractor", "yt_dlp.version",
+    "vrka_platform", "vrka_platform.windows", "vrka_platform.browser.webview2",
+]
 
 # PySide6 / Qt is handled by PyInstaller's standard hook (rth_pyside6) via
 # import tracing from vrka_qml_app -> vrka_qml.app (QtCore/QtGui/QtQml/QtWidgets).

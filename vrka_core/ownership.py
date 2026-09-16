@@ -26,32 +26,8 @@ def terminate_process_tree(process: ProcessLike) -> None:
     pid = int(process.pid)
     if pid <= 0:
         raise ValueError("Refusing to terminate an invalid process ID")
-    if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/PID", str(pid), "/T", "/F"],
-            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        return
-    import signal
-    try:
-        pgid = os.getpgid(pid)
-        if pgid != os.getpid():
-            os.killpg(pgid, signal.SIGTERM)
-    except (OSError, ProcessLookupError):
-        pass
-    process.terminate()
-    try:
-        process.wait(timeout=2.0)
-    except subprocess.TimeoutExpired:
-        try:
-            pgid = os.getpgid(pid)
-            if pgid != os.getpid():
-                os.killpg(pgid, signal.SIGKILL)
-        except (OSError, ProcessLookupError):
-            pass
-        process.kill()
-        process.wait(timeout=2.0)
+    from vrka_platform import get_platform_driver
+    get_platform_driver().terminate_process_tree(process)
 
 
 @dataclass

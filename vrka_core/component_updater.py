@@ -152,9 +152,11 @@ class YtdlpUpdater:
                     if item.get("name") and item.get("browser_download_url")
                 }
 
-                if os.name == "nt":
+                from vrka_platform import get_platform_driver
+                driver = get_platform_driver()
+                if driver.is_windows:
                     bin_name = "yt-dlp.exe"
-                elif sys.platform == "darwin":
+                elif driver.is_macos:
                     bin_name = "yt-dlp_macos" if "yt-dlp_macos" in assets else "yt-dlp"
                 else:
                     bin_name = "yt-dlp"
@@ -257,11 +259,7 @@ class YtdlpUpdater:
                     raise ValueError(f"yt-dlp checksum mismatch: expected {expected_sha}, got {actual_sha}")
 
                 # 4. Execution verification test
-                if os.name != "nt":
-                    try:
-                        os.chmod(staging_bin, 0o755)
-                    except OSError:
-                        pass
+                driver.ensure_executable(staging_bin)
                 valid, tested_ver, reason = app.validate_ytdlp_binary(staging_bin, expected_version=expected_ver)
                 if not valid:
                     if staging_bin.exists():
@@ -283,11 +281,7 @@ class YtdlpUpdater:
                         os.replace(previous, active)
                     raise
 
-                if os.name != "nt":
-                    try:
-                        os.chmod(active, 0o755)
-                    except OSError:
-                        pass
+                driver.ensure_executable(active)
 
                 # 6. Post-activation execution readback from the active binary
                 valid_active, active_ver, active_reason = app.validate_ytdlp_binary(active, expected_version=expected_ver)

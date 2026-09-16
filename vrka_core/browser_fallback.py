@@ -23,6 +23,7 @@ from .candidates import (
     HandoffBundle,
 )
 from .ownership import terminate_process_tree
+from .scheduler import TaskCancelled
 
 
 MAX_CAPTURE_BYTES = 8 * 1024 * 1024
@@ -445,6 +446,8 @@ class ProtectedBrowserFallback:
                                 "Browser-context transfer completed the task "
                                 "with media captured from the protected browser.")
                             return
+                    except (BrowserContextCancelled, TaskCancelled):
+                        raise
                     except Exception as transfer_exc:
                         context.log(
                             "Browser-context transfer could not reconstruct "

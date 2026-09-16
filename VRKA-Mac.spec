@@ -39,6 +39,7 @@ for package_name in (
 hiddenimports += [
     "yt_dlp", "yt_dlp.extractor", "yt_dlp.version", "static_ffmpeg",
     "objc", "WebKit", "AppKit", "Foundation",
+    "vrka_platform", "vrka_platform.macos", "vrka_platform.browser.cocoa_wkwebview",
 ]
 
 # Bundle static FFmpeg and FFprobe binaries for standalone app execution

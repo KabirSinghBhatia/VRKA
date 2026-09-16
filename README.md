@@ -53,7 +53,7 @@ Get-FileHash .\VRKA-4.5.3-Build-021-Setup.exe -Algorithm SHA256
 
 ## What is VRKA?
 
-VRKA is a clean, modern desktop media downloader designed for single-stream and batch downloads on Windows 10 and 11. Built with a native **Qt 6 QML** interface and a resilient Python backend, VRKA combines multi-factor quality selection powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) with an automated, passive **Browser Fallback** subsystem for sites that require browser-assisted stream observation.
+VRKA is a clean, modern desktop media downloader designed for single-stream and batch downloads on macOS (Apple Silicon & Intel) and Windows 10/11. Built with a native **Qt 6 QML** interface and a modular Python backend powered by `vrka_platform`, VRKA combines multi-factor quality selection powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) with an automated, passive **Browser Fallback** subsystem for sites that require browser-assisted stream observation.
 
 VRKA is entirely self-contained, ad-free, and respects your privacy with zero background services and zero telemetry.
 
