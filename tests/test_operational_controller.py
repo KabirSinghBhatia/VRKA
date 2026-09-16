@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -348,6 +349,35 @@ class UpdateAllAvailableTests(unittest.TestCase):
         self.assertFalse(op_ctrl.batchBusy)
         self.assertEqual(op_ctrl.batchStatusText, "All updated")
 
+    def test_export_sanitized_diagnostics_architecture(self):
+        """Diagnostics correctly includes dynamic platform.machine() architecture."""
+        self.mock_bridge.activity.rowCount.return_value = 0
+        op_ctrl = OperationalController(self.mock_host, self.mock_bridge, self.settings)
+        with patch("PySide6.QtGui.QGuiApplication.clipboard") as mock_clip:
+            mock_clipboard_instance = MagicMock()
+            mock_clip.return_value = mock_clipboard_instance
+            diag = op_ctrl.exportSanitizedDiagnostics()
+            self.assertIn(f"({platform.machine()})", diag)
+            self.assertIn(f"OS: {platform.system()}", diag)
+
+    def test_resolve_ffmpeg_location_validates(self):
+        """resolve_ffmpeg_location() must discover valid ffmpeg and ffprobe binaries."""
+        import os
+        import vrka_downloader as vd
+        ffmpeg_dir = vd.resolve_ffmpeg_location()
+        self.assertIsNotNone(ffmpeg_dir, "FFmpeg directory must be resolvable via static-ffmpeg or runtime")
+        exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+        probe_name = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+        ffmpeg_path = os.path.join(ffmpeg_dir, exe_name)
+        probe_path = os.path.join(ffmpeg_dir, probe_name)
+        self.assertTrue(os.path.isfile(ffmpeg_path), f"ffmpeg must exist at {ffmpeg_path}")
+        self.assertTrue(os.path.isfile(probe_path), f"ffprobe must exist at {probe_path}")
+        valid_f, _, err_f = vd.validate_ffmpeg_binary(ffmpeg_path)
+        self.assertTrue(valid_f, f"ffmpeg validation failed: {err_f}")
+        valid_p, _, err_p = vd.validate_ffprobe_binary(probe_path)
+        self.assertTrue(valid_p, f"ffprobe validation failed: {err_p}")
+
 
 if __name__ == "__main__":
     unittest.main()
+

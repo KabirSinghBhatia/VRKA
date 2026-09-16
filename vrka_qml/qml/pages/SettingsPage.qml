@@ -808,7 +808,7 @@ ScrollView {
             Layout.fillWidth: true
             headerTitle: "Subtitles & Captions"
             headerSubtitle: "Subtitle language filters and embedding rules"
-            headerIcon: Qt.resolvedUrl("../../../assets/branding/v2icons/subtitles-accent-32.png")
+            headerIcon: Qt.resolvedUrl("../../../assets/branding/v2icons/captions-accent-32.png")
 
             ColumnLayout {
                 Layout.fillWidth: true

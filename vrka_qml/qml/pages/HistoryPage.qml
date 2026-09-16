@@ -60,7 +60,7 @@ Item {
                     text: "Clear Archive"
                     Layout.preferredHeight: 34
                     enabled: Bridge.historyCount > 0
-                    onClicked: Controller.clearHistory()
+                    onClicked: QueueController.clearAllHistory()
                 }
             }
         }

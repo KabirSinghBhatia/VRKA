@@ -56,8 +56,9 @@ When downloading from streaming sites where direct extractors are blocked by bot
 
 ## Managed Media Runtime
 
-VRKA automatically provisions and manages its media processing tools (yt-dlp and FFmpeg) in `%LOCALAPPDATA%\VRKA\runtime\`.
+VRKA automatically provisions and manages its media processing tools (yt-dlp and FFmpeg) in `%LOCALAPPDATA%\VRKA\runtime\` on Windows or `~/.vrka/runtime/` on macOS.
 
-- **No Manual Setup**: You do not need to install FFmpeg or add it to your system PATH.
-- **First-Run Provisioning**: When a download requires stream merging or audio conversion for the first time, VRKA downloads and verifies the official FFmpeg static binaries.
-- **Offline Operation**: Once downloaded, all tools run locally and offline.
+- **No Manual Setup Required**: You do not need to install FFmpeg or add it to your system PATH.
+- **Homebrew Integration on macOS**: On macOS, VRKA automatically detects and utilizes Homebrew FFmpeg (`/opt/homebrew/bin/ffmpeg`) if present.
+- **First-Run Provisioning**: If FFmpeg is absent, VRKA downloads and verifies the official FFmpeg static binaries.
+- **Offline Operation**: Once available, all tools run locally and offline.

@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import shutil
 import sys
@@ -47,6 +48,7 @@ _APPROVED_HOSTS = (
 _SETUP_EXE_PATTERN = re.compile(r"^VRKA-.*(?:setup|installer).*\.exe$", re.IGNORECASE)
 _PORTABLE_ZIP_PATTERN = re.compile(r"^VRKA-.*portable.*\.zip$", re.IGNORECASE)
 _PORTABLE_EXE_PATTERN = re.compile(r"^VRKA-.*portable.*\.exe$", re.IGNORECASE)
+_MAC_DMG_PATTERN = re.compile(r"^VRKA-.*(?:arm64|macos|mac).*\.(?:dmg|zip)$", re.IGNORECASE)
 
 # Global lock preventing concurrent app update operations
 _APP_UPDATE_LOCK = threading.Lock()
@@ -54,6 +56,8 @@ _APP_UPDATE_LOCK = threading.Lock()
 
 def is_installer_installation() -> bool:
     """Detect whether current running instance was installed by Inno Setup installer."""
+    if sys.platform != "win32":
+        return False
     try:
         exe_path = Path(sys.executable).resolve()
         # 1. Inno Setup leaves unins000.exe in the installation root
@@ -163,7 +167,7 @@ def check_for_application_update(
     req = urllib.request.Request(
         repo_url,
         headers={
-            "User-Agent": f"VRKA/{current_version_str} (Windows x64)",
+            "User-Agent": f"VRKA/{current_version_str} ({platform.system()} {platform.machine()})",
             "Accept": "application/vnd.github.v3+json",
         },
     )
@@ -201,7 +205,24 @@ def check_for_application_update(
             sha256_url = durl
 
     # Select appropriate binary distribution asset
-    if is_installed:
+    if sys.platform == "darwin":
+        dist_type = "dmg"
+        for a in assets:
+            name = str(a.get("name") or "")
+            durl = str(a.get("browser_download_url") or "")
+            if _MAC_DMG_PATTERN.match(name):
+                asset_name = name
+                asset_url = durl
+                break
+        if not asset_url:
+            for a in assets:
+                name = str(a.get("name") or "")
+                durl = str(a.get("browser_download_url") or "")
+                if name.lower().endswith(".dmg") or (name.lower().endswith(".zip") and "mac" in name.lower()):
+                    asset_name = name
+                    asset_url = durl
+                    break
+    elif is_installed:
         # Prefer Setup.exe for installer installation
         for a in assets:
             name = str(a.get("name") or "")
@@ -228,8 +249,8 @@ def check_for_application_update(
                     asset_url = durl
                     break
 
-    # Fallback to Setup.exe if portable was not found
-    if not asset_url:
+    # Fallback to Setup.exe on Windows if portable was not found
+    if not asset_url and sys.platform == "win32":
         for a in assets:
             name = str(a.get("name") or "")
             durl = str(a.get("browser_download_url") or "")
@@ -291,8 +312,11 @@ def download_and_verify_update(
         raise ValueError("No valid release installer asset found in update metadata")
 
     if staging_dir is None:
-        local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-        staging_dir = local_app_data / "VRKA" / "updates"
+        if sys.platform == "darwin":
+            staging_dir = Path.home() / ".vrka" / "updates"
+        else:
+            local_app_data = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+            staging_dir = local_app_data / "VRKA" / "updates"
 
     staging_dir.mkdir(parents=True, exist_ok=True)
     target_file = staging_dir / update_info.asset_name

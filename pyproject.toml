@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vrka"
 version = "4.5.3"
-description = "Lightweight, resilient desktop media downloader for Windows"
+description = "Lightweight, resilient desktop media downloader for Windows & macOS"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
@@ -15,10 +15,13 @@ authors = [
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X :: Cocoa",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: Microsoft :: Windows :: Windows 10",
     "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Operating System :: MacOS",
+    "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -35,6 +38,9 @@ dependencies = [
     "Pillow>=10.0.0",
     "pgpy>=0.6.0",
     "cryptography>=50.0.0",
+    "pyobjc-framework-WebKit>=10.0; sys_platform == 'darwin'",
+    "standard-imghdr>=3.13.0; python_version >= '3.13'",
+    "static-ffmpeg>=3.0",
 ]
 
 [project.urls]

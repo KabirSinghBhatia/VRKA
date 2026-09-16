@@ -33,10 +33,23 @@ def terminate_process_tree(process: ProcessLike) -> None:
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         return
+    import signal
+    try:
+        pgid = os.getpgid(pid)
+        if pgid != os.getpid():
+            os.killpg(pgid, signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        pass
     process.terminate()
     try:
         process.wait(timeout=2.0)
     except subprocess.TimeoutExpired:
+        try:
+            pgid = os.getpgid(pid)
+            if pgid != os.getpid():
+                os.killpg(pgid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            pass
         process.kill()
         process.wait(timeout=2.0)
 

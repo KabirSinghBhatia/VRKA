@@ -109,3 +109,9 @@ class QueueController(QObject):
         self._host.history = []
         self._host.save_history()
         self._host.ui_queue.put(("history_refresh", None))
+
+    @Slot()
+    def clearHistory(self) -> None:
+        """Alias for clearAllHistory."""
+        self.clearAllHistory()
+

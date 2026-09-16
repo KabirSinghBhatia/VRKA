@@ -9,6 +9,7 @@ Rectangle {
     id: root
 
     required property Window targetWindow
+    readonly property bool isMac: Qt.platform.os === "osx" || Qt.platform.os === "macos"
 
     height: Theme.titleBarHeight
     color: Theme.titleBarBg
@@ -17,15 +18,124 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        // Left Branding (Small Icon + Title VRKA)
+        // macOS Traffic Light Window Controls (Close, Minimize, Zoom) on the Left
+        Item {
+            visible: root.isMac
+            Layout.preferredHeight: Theme.titleBarHeight
+            Layout.preferredWidth: visible ? (macTrafficRow.implicitWidth + 24) : 0
+
+            RowLayout {
+                id: macTrafficRow
+                anchors.left: parent.left
+                anchors.leftMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+
+                property bool groupHovered: macCloseBtn.hovered || macMinBtn.hovered || macZoomBtn.hovered
+
+                // Close (Red)
+                AbstractButton {
+                    id: macCloseBtn
+                    Layout.preferredWidth: 12
+                    Layout.preferredHeight: 12
+                    hoverEnabled: true
+                    onClicked: {
+                        if (root.targetWindow) root.targetWindow.close()
+                    }
+
+                    background: Rectangle {
+                        width: 12
+                        height: 12
+                        radius: 6
+                        color: macCloseBtn.down ? "#BF3E38" : macCloseBtn.hovered ? "#E0443E" : "#FF5F56"
+                        border.width: 0.5
+                        border.color: "#D0413B"
+
+                        Text {
+                            anchors.centerIn: parent
+                            visible: macTrafficRow.groupHovered
+                            text: "\u2715"
+                            font.pixelSize: 8
+                            font.bold: true
+                            color: "#4A0000"
+                        }
+                    }
+                }
+
+                // Minimize (Amber)
+                AbstractButton {
+                    id: macMinBtn
+                    Layout.preferredWidth: 12
+                    Layout.preferredHeight: 12
+                    hoverEnabled: true
+                    onClicked: {
+                        if (root.targetWindow) root.targetWindow.showMinimized()
+                    }
+
+                    background: Rectangle {
+                        width: 12
+                        height: 12
+                        radius: 6
+                        color: macMinBtn.down ? "#BF8E1F" : macMinBtn.hovered ? "#DEA123" : "#FFBD2E"
+                        border.width: 0.5
+                        border.color: "#D89E24"
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            visible: macTrafficRow.groupHovered
+                            width: 6
+                            height: 1
+                            color: "#5C3E00"
+                        }
+                    }
+                }
+
+                // Zoom / Fullscreen (Green)
+                AbstractButton {
+                    id: macZoomBtn
+                    Layout.preferredWidth: 12
+                    Layout.preferredHeight: 12
+                    hoverEnabled: true
+                    readonly property bool isMaximized: root.targetWindow && root.targetWindow.visibility === Window.Maximized
+                    onClicked: {
+                        if (!root.targetWindow) return
+                        if (isMaximized) {
+                            root.targetWindow.showNormal()
+                        } else {
+                            root.targetWindow.showMaximized()
+                        }
+                    }
+
+                    background: Rectangle {
+                        width: 12
+                        height: 12
+                        radius: 6
+                        color: macZoomBtn.down ? "#1F992E" : macZoomBtn.hovered ? "#1AAB29" : "#27C93F"
+                        border.width: 0.5
+                        border.color: "#1EA032"
+
+                        Text {
+                            anchors.centerIn: parent
+                            visible: macTrafficRow.groupHovered
+                            text: "+"
+                            font.pixelSize: 9
+                            font.bold: true
+                            color: "#0B4710"
+                        }
+                    }
+                }
+            }
+        }
+
+        // Branding (Small Icon + Title VRKA)
         Item {
             Layout.preferredHeight: Theme.titleBarHeight
-            Layout.preferredWidth: titleRow.implicitWidth + 24
+            Layout.preferredWidth: titleRow.implicitWidth + 20
 
             RowLayout {
                 id: titleRow
                 anchors.left: parent.left
-                anchors.leftMargin: 12
+                anchors.leftMargin: root.isMac ? 4 : 12
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 8
 
@@ -68,7 +178,7 @@ Rectangle {
             }
         }
 
-        // Center Draggable Region (Native Windows System Move & Double-Click Maximize)
+        // Center Draggable Region (Native System Move & Double-Click Maximize)
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -95,8 +205,16 @@ Rectangle {
             }
         }
 
-        // Right Window Control Buttons (Minimize, Maximize/Restore, Close)
+        // Right spacer on macOS to visually balance top-left traffic lights
+        Item {
+            visible: root.isMac
+            Layout.preferredHeight: Theme.titleBarHeight
+            Layout.preferredWidth: visible ? 70 : 0
+        }
+
+        // Right Window Control Buttons for Windows (Minimize, Maximize/Restore, Close)
         RowLayout {
+            visible: !root.isMac
             Layout.preferredHeight: Theme.titleBarHeight
             spacing: 0
 

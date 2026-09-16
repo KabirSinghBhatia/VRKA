@@ -7,3 +7,6 @@ pywebview==6.2.1
 PySide6==6.11.2
 pgpy==0.6.0
 cryptography>=50.0.0
+pyobjc-framework-WebKit>=10.0; sys_platform == 'darwin'
+standard-imghdr>=3.13.0; python_version >= '3.13'
+static-ffmpeg>=3.0

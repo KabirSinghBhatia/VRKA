@@ -25,6 +25,7 @@ from vrka_qml.app_updater import (
     SafeRedirectHandler,
     SemanticVersion,
     _APP_UPDATE_LOCK,
+    _MAC_DMG_PATTERN,
     _PORTABLE_EXE_PATTERN,
     _PORTABLE_ZIP_PATTERN,
     _SETUP_EXE_PATTERN,
@@ -79,6 +80,12 @@ class AppUpdaterTests(unittest.TestCase):
         self.assertTrue(_PORTABLE_EXE_PATTERN.match("VRKA-4.5.1-Build-019-Portable.exe"))
         self.assertTrue(_PORTABLE_EXE_PATTERN.match("VRKA-4.5.1-portable-Windows-x64.exe"))
         self.assertFalse(_PORTABLE_EXE_PATTERN.match("VRKA-4.5.1-Portable.zip"))
+
+        # macOS DMG and zip patterns
+        self.assertTrue(_MAC_DMG_PATTERN.match("VRKA-4.5.3-macOS-arm64.dmg"))
+        self.assertTrue(_MAC_DMG_PATTERN.match("VRKA-4.5.3-macOS-arm64.zip"))
+        self.assertTrue(_MAC_DMG_PATTERN.match("VRKA-mac.dmg"))
+        self.assertFalse(_MAC_DMG_PATTERN.match("VRKA-4.5.3-Setup.exe"))
 
     def test_redirect_handler_blocks_insecure_http_downgrade(self):
         handler = SafeRedirectHandler()

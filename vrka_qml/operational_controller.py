@@ -1068,7 +1068,7 @@ class OperationalController(QObject):
         try:
             self._app_update_status_text = f"Verified package ready: {exe_name}. Launching setup..."
             self.appUpdateStatusTextChanged.emit()
-            os.startfile(exe_path)
+            app.open_path(exe_path)
         finally:
             self._app_update_busy = False
             self.appUpdateBusyChanged.emit()
@@ -1090,7 +1090,7 @@ class OperationalController(QObject):
         """Collect and sanitize full operational diagnostics, copying to system clipboard."""
         lines = [
             f"=== VRKA {app.APP_DISPLAY_VERSION} OPERATIONAL DIAGNOSTICS ===",
-            f"OS: {platform.system()} {platform.release()} (x64) - Python {sys.version.split()[0]}",
+            f"OS: {platform.system()} {platform.release()} ({platform.machine()}) - Python {sys.version.split()[0]}",
             f"PySide6: {app.PySide6.__version__ if hasattr(app, 'PySide6') else 'Loaded'}",
             f"Application Version: {app.APP_DISPLAY_VERSION} (Build {app.APP_BUILD})",
             f"Active Output Folder: {self._host.output_folder}",

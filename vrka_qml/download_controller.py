@@ -226,3 +226,17 @@ class DownloadController(QObject):
     def clearCompleted(self) -> None:
         if hasattr(self._engine, "_queue_controller") and self._engine._queue_controller:
             self._engine._queue_controller.clearCompleted()
+
+    @Slot()
+    def clearAllHistory(self) -> None:
+        if hasattr(self._engine, "history"):
+            self._engine.history = []
+            if hasattr(self._engine, "save_history"):
+                self._engine.save_history()
+            if hasattr(self._engine, "ui_queue"):
+                self._engine.ui_queue.put(("history_refresh", None))
+
+    @Slot()
+    def clearHistory(self) -> None:
+        self.clearAllHistory()
+

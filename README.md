@@ -1,11 +1,11 @@
 <div align="center">
   <img src="assets/branding/vrka-wolf-256.png" width="96" height="96" alt="VRKA Logo" />
   <h1>VRKA</h1>
-  <p><strong>A modern, lightweight desktop media downloader for Windows.</strong></p>
+  <p><strong>A modern, lightweight desktop media downloader for Windows and macOS.</strong></p>
 
   <p>
     <a href="https://github.com/MaverickRox/VRKA/releases/latest"><img src="https://img.shields.io/github/v/release/MaverickRox/VRKA?style=flat-square&color=6366f1" alt="Release" /></a>
-    <a href="https://github.com/MaverickRox/VRKA/releases"><img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-blue?style=flat-square" alt="Platform" /></a>
+    <a href="https://github.com/MaverickRox/VRKA/releases"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20arm64-blue?style=flat-square" alt="Platform" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-green?style=flat-square" alt="License" /></a>
     <a href="https://github.com/MaverickRox/VRKA/issues"><img src="https://img.shields.io/github/issues/MaverickRox/VRKA?style=flat-square" alt="Issues" /></a>
   </p>
@@ -61,7 +61,7 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 
 ## Features
 
-- **Custom Windows Title Bar**: Native window controls, snap layout compatibility, edge resizing, and smooth dragging.
+- **Adaptive Title Bar**: Native window controls and snap layouts on Windows; native traffic light controls on macOS with smooth window dragging.
 - **Multi-Factor Quality Ranking**: Evaluates resolution, frame rate (up to 60 FPS), bitrate, container, and codec efficiency to select the highest-fidelity stream.
 - **Responsive Qt 6 QML Interface**: Hardware-accelerated UI with refined dark and light themes, and typography selection between Monospace and System Default.
 - **Audio Extraction & Transcoding**: Extract audio in MP3 (320, 256, 192, 128 kbps), Opus, or uncompressed WAV formats.
@@ -125,12 +125,30 @@ VRKA is entirely self-contained, ad-free, and respects your privacy with zero ba
 
 ### Prerequisites
 
-- Windows 10 / 11 x64
-- Python 3.10, 3.11, or 3.12
-- Git
+- **Windows**: Windows 10 / 11 x64, Git, Python 3.10+
+- **macOS**: macOS 11.0+ (Apple Silicon M1/M2/M3/M4 or Intel), Homebrew, Git, Python 3.10+
+  - Optional: `brew install ffmpeg deno` (VRKA also provisions FFmpeg automatically if not present)
 
 ### Setup & Run
 
+#### macOS (Apple Silicon / Intel)
+```bash
+# Clone the repository
+git clone https://github.com/MaverickRox/VRKA.git
+cd VRKA
+
+# Set up an isolated virtual environment with Homebrew Python
+/opt/homebrew/bin/python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the application
+python vrka_qml_app.py
+```
+
+#### Windows
 ```powershell
 # Clone the repository
 git clone https://github.com/MaverickRox/VRKA.git
@@ -149,13 +167,23 @@ python vrka_qml_app.py
 
 ### Running Tests
 
-```powershell
-# Run the test suite
+```bash
+# On macOS:
+.venv/bin/python -m unittest discover -s tests -v
+
+# On Windows:
 python -m unittest discover -s tests -v
 ```
 
 ### Compiling Standalone Binary
 
+#### macOS (Apple Silicon Application Bundle & DMG)
+```bash
+# Builds dist/VRKA.app, signs ad-hoc, and creates dist/VRKA-4.5.3-macOS-arm64.dmg
+./build_mac.sh
+```
+
+#### Windows (Executable & Setup Wizard)
 ```powershell
 # Build standalone VRKA.exe with PyInstaller
 pip install pyinstaller

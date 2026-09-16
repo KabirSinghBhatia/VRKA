@@ -987,6 +987,11 @@ def validate_ffmpeg_binary(path, expected_version=None):
         return False, "", "The ffmpeg binary is missing or unexpectedly small."
     if not _valid_windows_executable_header(candidate):
         return False, "", "The candidate is not a valid Windows executable."
+    if os.name != "nt":
+        try:
+            candidate.chmod(candidate.stat().st_mode | 0o755)
+        except OSError:
+            pass
     try:
         res = _run_hidden([str(candidate), "-version"], timeout=20)
         if res.returncode != 0:
@@ -1006,6 +1011,11 @@ def validate_ffprobe_binary(path, expected_version=None):
         return False, "", "The ffprobe binary is missing or unexpectedly small."
     if not _valid_windows_executable_header(candidate):
         return False, "", "The candidate is not a valid Windows executable."
+    if os.name != "nt":
+        try:
+            candidate.chmod(candidate.stat().st_mode | 0o755)
+        except OSError:
+            pass
     try:
         res = _run_hidden([str(candidate), "-version"], timeout=20)
         if res.returncode != 0:
@@ -1021,8 +1031,9 @@ def validate_ffprobe_binary(path, expected_version=None):
 
 def resolve_ffmpeg_location():
     """Return the directory containing validated ffmpeg and ffprobe binaries.
-    Prefers the local managed runtime in %LOCALAPPDATA%\\VRKA\\runtime, then
-    bundled beside the application, otherwise returns None."""
+    Prefers the local managed runtime in %LOCALAPPDATA%\\VRKA\\runtime (or ~/.vrka/runtime),
+    then bundled beside the application, then Python static-ffmpeg runtime, then system/Homebrew,
+    otherwise returns None."""
     exe_suffix = ".exe" if os.name == "nt" else ""
     ffmpeg_active = RUNTIME_DIR / f"ffmpeg{exe_suffix}"
     ffprobe_active = RUNTIME_DIR / f"ffprobe{exe_suffix}"
@@ -1033,14 +1044,67 @@ def resolve_ffmpeg_location():
             return str(RUNTIME_DIR)
 
     exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    probe_name = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+
+    # Bundled application candidates
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
-        candidate = os.path.join(exe_dir, "ffmpeg_bin")
-        if os.path.isfile(os.path.join(candidate, exe_name)):
-            return candidate
+        for cand_dir in (
+            os.path.join(exe_dir, "ffmpeg_bin"),
+            os.path.join(getattr(sys, "_MEIPASS", ""), "ffmpeg_bin"),
+            os.path.join(os.path.dirname(exe_dir), "Frameworks", "ffmpeg_bin"),
+            os.path.join(os.path.dirname(exe_dir), "Resources", "ffmpeg_bin"),
+        ):
+            if os.path.isfile(os.path.join(cand_dir, exe_name)) and os.path.isfile(os.path.join(cand_dir, probe_name)):
+                valid_f, _, _ = validate_ffmpeg_binary(os.path.join(cand_dir, exe_name))
+                valid_p, _, _ = validate_ffprobe_binary(os.path.join(cand_dir, probe_name))
+                if valid_f and valid_p:
+                    return cand_dir
+
     candidate = os.path.join(get_resource_base(), "ffmpeg_bin")
-    if os.path.isfile(os.path.join(candidate, exe_name)):
-        return candidate
+    if os.path.isfile(os.path.join(candidate, exe_name)) and os.path.isfile(os.path.join(candidate, probe_name)):
+        valid_f, _, _ = validate_ffmpeg_binary(os.path.join(candidate, exe_name))
+        valid_p, _, _ = validate_ffprobe_binary(os.path.join(candidate, probe_name))
+        if valid_f and valid_p:
+            return candidate
+
+    # Python static-ffmpeg package discovery (contained in .venv or active environment)
+    try:
+        from static_ffmpeg import run as _s_run
+        _s_ffmpeg, _s_ffprobe = _s_run.get_or_fetch_platform_executables_else_raise()
+        if _s_ffmpeg and _s_ffprobe and os.path.isfile(_s_ffmpeg) and os.path.isfile(_s_ffprobe):
+            _s_dir = os.path.dirname(_s_ffmpeg)
+            if os.path.dirname(_s_ffprobe) == _s_dir:
+                valid_f, _, _ = validate_ffmpeg_binary(_s_ffmpeg)
+                valid_p, _, _ = validate_ffprobe_binary(_s_ffprobe)
+                if valid_f and valid_p:
+                    return _s_dir
+    except Exception:
+        pass
+
+    # macOS / Apple Silicon Homebrew locations
+    if platform.system() == "Darwin":
+        for brew_dir in ("/opt/homebrew/bin", "/usr/local/bin"):
+            if (
+                os.path.isfile(os.path.join(brew_dir, "ffmpeg"))
+                and os.path.isfile(os.path.join(brew_dir, "ffprobe"))
+            ):
+                valid_f, _, _ = validate_ffmpeg_binary(os.path.join(brew_dir, "ffmpeg"))
+                valid_p, _, _ = validate_ffprobe_binary(os.path.join(brew_dir, "ffprobe"))
+                if valid_f and valid_p:
+                    return brew_dir
+
+    # System PATH discovery
+    sys_ffmpeg = shutil.which("ffmpeg")
+    sys_ffprobe = shutil.which("ffprobe")
+    if sys_ffmpeg and sys_ffprobe:
+        ffmpeg_dir = os.path.dirname(sys_ffmpeg)
+        if os.path.dirname(sys_ffprobe) == ffmpeg_dir:
+            valid_f, _, _ = validate_ffmpeg_binary(sys_ffmpeg)
+            valid_p, _, _ = validate_ffprobe_binary(sys_ffprobe)
+            if valid_f and valid_p:
+                return ffmpeg_dir
+
     return None
 
 
@@ -1060,11 +1124,50 @@ def ensure_ffmpeg_runtime(progress_callback=None):
             if existing:
                 return existing
             raise RuntimeError("Concurrent FFmpeg provisioning in progress.")
-    archive_dest = RUNTIME_DIR / ".ffmpeg_archive.download"
-    exe_suffix = ".exe" if os.name == "nt" else ""
-    staging_ffmpeg = RUNTIME_DIR / f".ffmpeg.staging{exe_suffix}"
-    staging_ffprobe = RUNTIME_DIR / f".ffprobe.staging{exe_suffix}"
+    archive_dest = None
+    staging_ffmpeg = None
+    staging_ffprobe = None
     try:
+        if platform.system() == "Darwin":
+            # On macOS, resolve via static-ffmpeg in the virtual environment without modifying host
+            try:
+                from static_ffmpeg import run as _s_run
+                if progress_callback:
+                    progress_callback("Provisioning FFmpeg runtime via static-ffmpeg...")
+                _s_ffmpeg, _s_ffprobe = _s_run.get_or_fetch_platform_executables_else_raise()
+                if _s_ffmpeg and _s_ffprobe and os.path.isfile(_s_ffmpeg) and os.path.isfile(_s_ffprobe):
+                    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+                    active_ffmpeg = RUNTIME_DIR / "ffmpeg"
+                    active_ffprobe = RUNTIME_DIR / "ffprobe"
+                    shutil.copy2(_s_ffmpeg, active_ffmpeg)
+                    shutil.copy2(_s_ffprobe, active_ffprobe)
+                    active_ffmpeg.chmod(active_ffmpeg.stat().st_mode | 0o755)
+                    active_ffprobe.chmod(active_ffprobe.stat().st_mode | 0o755)
+                    valid_f, ver_f, _ = validate_ffmpeg_binary(active_ffmpeg)
+                    valid_p, ver_p, _ = validate_ffprobe_binary(active_ffprobe)
+                    if valid_f and valid_p:
+                        _save_runtime_state(
+                            ffmpeg_version=ver_f,
+                            ffmpeg_sha256="",
+                            ffmpeg_installed_at=int(time.time()),
+                            ffmpeg_distribution="static-ffmpeg",
+                        )
+                        if progress_callback:
+                            progress_callback(f"Managed FFmpeg runtime activated successfully (version {ver_f}).")
+                        return str(RUNTIME_DIR)
+            except Exception as _e:
+                _LOGGER.warning("static-ffmpeg provisioning on macOS encountered: %s", _e)
+
+            existing = resolve_ffmpeg_location()
+            if existing:
+                return existing
+            raise RuntimeError("FFmpeg could not be resolved on macOS via static-ffmpeg or system PATH.")
+
+        # Windows provisioning flow via GyanD
+        archive_dest = RUNTIME_DIR / ".ffmpeg_archive.download"
+        exe_suffix = ".exe" if os.name == "nt" else ""
+        staging_ffmpeg = RUNTIME_DIR / f".ffmpeg.staging{exe_suffix}"
+        staging_ffprobe = RUNTIME_DIR / f".ffprobe.staging{exe_suffix}"
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
         url = PINNED_FFMPEG_RELEASE["archive_url"]
         expected_sha = PINNED_FFMPEG_RELEASE["archive_sha256"]
@@ -1106,12 +1209,38 @@ def ensure_ffmpeg_runtime(progress_callback=None):
                 if ".." in member.filename or member.filename.startswith("/") or member.filename.startswith("\\"):
                     raise ValueError(f"Path traversal detected in archive member: {member.filename}")
                 norm = member.filename.replace("\\", "/")
-                if norm.endswith("/bin/ffmpeg.exe") or norm == "bin/ffmpeg.exe":
+                is_ffmpeg = (
+                    norm.endswith("/bin/ffmpeg.exe")
+                    or norm == "bin/ffmpeg.exe"
+                    or norm.endswith("/bin/ffmpeg")
+                    or norm == "bin/ffmpeg"
+                    or norm.endswith("/ffmpeg")
+                    or norm == "ffmpeg"
+                )
+                is_ffprobe = (
+                    norm.endswith("/bin/ffprobe.exe")
+                    or norm == "bin/ffprobe.exe"
+                    or norm.endswith("/bin/ffprobe")
+                    or norm == "bin/ffprobe"
+                    or norm.endswith("/ffprobe")
+                    or norm == "ffprobe"
+                )
+                if is_ffmpeg:
                     with z.open(member) as source_f, open(staging_ffmpeg, "wb") as target_f:
                         shutil.copyfileobj(source_f, target_f)
-                elif norm.endswith("/bin/ffprobe.exe") or norm == "bin/ffprobe.exe":
+                elif is_ffprobe:
                     with z.open(member) as source_f, open(staging_ffprobe, "wb") as target_f:
                         shutil.copyfileobj(source_f, target_f)
+
+        if os.name != "nt":
+            try:
+                staging_ffmpeg.chmod(staging_ffmpeg.stat().st_mode | 0o755)
+            except OSError:
+                pass
+            try:
+                staging_ffprobe.chmod(staging_ffprobe.stat().st_mode | 0o755)
+            except OSError:
+                pass
 
         valid_f, ver_f, err_f = validate_ffmpeg_binary(staging_ffmpeg)
         if not valid_f:
@@ -1143,6 +1272,16 @@ def ensure_ffmpeg_runtime(progress_callback=None):
         _replace_file_safe(staging_ffmpeg, active_ffmpeg)
         _replace_file_safe(staging_ffprobe, active_ffprobe)
 
+        if os.name != "nt":
+            try:
+                active_ffmpeg.chmod(active_ffmpeg.stat().st_mode | 0o755)
+            except OSError:
+                pass
+            try:
+                active_ffprobe.chmod(active_ffprobe.stat().st_mode | 0o755)
+            except OSError:
+                pass
+
         _save_runtime_state(
             ffmpeg_version=ver_f,
             ffmpeg_sha256=actual_sha,
@@ -1157,7 +1296,7 @@ def ensure_ffmpeg_runtime(progress_callback=None):
     finally:
         for p in (archive_dest, staging_ffmpeg, staging_ffprobe):
             try:
-                if p.exists():
+                if p and p.exists():
                     p.unlink()
             except OSError:
                 pass
@@ -1196,8 +1335,13 @@ def get_bundled_deno_dir():
 
 
 def configure_bundled_runtime_path():
-    """Make a packaged Deno visible to this process and any self-invoked
-    custom-command process without changing the user's permanent PATH."""
+    """Make packaged Deno and Apple Silicon Homebrew tools visible to this process
+    and any self-invoked custom-command process without changing the user's permanent PATH."""
+    if platform.system() == "Darwin":
+        for extra_path in ("/opt/homebrew/bin", "/usr/local/bin"):
+            path_parts = os.environ.get("PATH", "").split(os.pathsep)
+            if extra_path not in path_parts and os.path.isdir(extra_path):
+                os.environ["PATH"] = extra_path + os.pathsep + os.environ.get("PATH", "")
     deno_dir = get_bundled_deno_dir()
     if not deno_dir:
         return None
@@ -1382,6 +1526,11 @@ def validate_ytdlp_binary(path, expected_version=None):
         return False, "", "The downloaded file is missing or unexpectedly small."
     if not _valid_windows_executable_header(candidate):
         return False, "", "The downloaded file is not a Windows executable."
+    if os.name != "nt":
+        try:
+            candidate.chmod(candidate.stat().st_mode | 0o755)
+        except OSError:
+            pass
     try:
         version_result = _run_hidden([str(candidate), "--version"], timeout=20)
         version = (version_result.stdout or "").strip().splitlines()[0]
@@ -2704,13 +2853,16 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
         observer_info = _prepare_media_observer()
         popup_stats["observer"] = observer_info
 
-        # The window opens on a blank page; the requested URL is loaded only
+        # On Windows, the window opens on a blank page; the requested URL is loaded only
         # after the session guard (and uBOL, when available) is ready, so the
-        # target site's first document request runs under the filter.  No
-        # post-install reload is needed because the target has not loaded yet.
+        # target site's first document request runs under the filter.
+        # On macOS / non-Windows, pywebview uses native Cocoa WKWebView which loads
+        # start_url directly and immediately without blank-screen delay.
+        is_windows = (os.name == "nt")
+        initial_url = "about:blank" if is_windows else start_url
         window = webview.create_window(
             "VRKA Browser Verification — close this window when the media is ready",
-            url="about:blank",
+            url=initial_url,
             width=1100,
             height=760,
             min_size=(760, 520),
@@ -2930,13 +3082,18 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
             })
 
         # pywebview exposes WebView2 request/response events from the very first
-        # navigation. Synchronous dispatch only enqueues a tiny record, avoiding
+        # navigation on Windows. Synchronous dispatch only enqueues a tiny record, avoiding
         # pywebview's default thread-per-request behavior; classification remains
         # on the single observer worker above.
-        window.events.request_sent._should_lock = True
-        window.events.response_received._should_lock = True
-        window.events.request_sent += capture_request
-        window.events.response_received += capture_response
+        # On macOS Cocoa, hooking request_sent causes cocoa.py to cancel all subframe
+        # requests (including Cloudflare verification iframes) and reload them into the
+        # root window, breaking anti-bot challenges and causing an immediate blank white screen.
+        if is_windows:
+            window.events.request_sent._should_lock = True
+            window.events.response_received._should_lock = True
+            window.events.request_sent += capture_request
+            window.events.response_received += capture_response
+
 
         def install_observer(*_event_args):
             try:
@@ -3669,18 +3826,21 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
                 if browser_view is None:
                     window.load_url(start_url)
                     return
-                from System import Action
+                if os.name == "nt":
+                    from System import Action
 
-                def _go():
-                    try:
-                        window.load_url(start_url)
-                    except Exception:
-                        pass
+                    def _go():
+                        try:
+                            window.load_url(start_url)
+                        except Exception:
+                            pass
 
-                if browser_view.InvokeRequired:
-                    browser_view.Invoke(Action(_go))
+                    if browser_view.InvokeRequired:
+                        browser_view.Invoke(Action(_go))
+                    else:
+                        _go()
                 else:
-                    _go()
+                    window.load_url(start_url)
             except Exception:
                 try:
                     window.load_url(start_url)
@@ -3717,17 +3877,45 @@ def run_browser_verification_helper(start_url, result_path, *, protected=False):
                     time.sleep(UBOL_DNR_WARMUP_SECONDS)
             navigate_to_requested_page()
 
-        threading.Thread(
-            target=install_session_guard_when_ready,
-            name="vrka-session-guard", daemon=True,
-        ).start()
+        if is_windows:
+            threading.Thread(
+                target=install_session_guard_when_ready,
+                name="vrka-session-guard", daemon=True,
+            ).start()
+        else:
+            ubol_ready.set()
+            try:
+                import webview.platforms.cocoa as cocoa
 
-        webview.start(
-            gui="edgechromium",
-            debug=False,
-            private_mode=False,
-            storage_path=str(profile_path),
-        )
+                def _block_cocoa_popup(self, webview, config, action, features):
+                    req_url = ""
+                    try:
+                        req_url = str(action.request().URL().absoluteString() or "")
+                    except Exception:
+                        pass
+                    if req_url:
+                        _append_bounded(popup_stats["blocked_urls"], req_url)
+                        popup_stats["blocked"] += 1
+                    return None
+
+                cocoa.BrowserView.BrowserDelegate.webView_createWebViewWithConfiguration_forNavigationAction_windowFeatures_ = (
+                    _block_cocoa_popup
+                )
+                popup_stats["native_guard_installed"] = True
+                popup_stats["guard_error"] = ""
+            except Exception as cocoa_exc:
+                popup_stats["guard_error"] = f"Cocoa popup guard: {cocoa_exc}"
+
+
+        start_kwargs = {
+            "debug": False,
+            "private_mode": False,
+            "storage_path": str(profile_path),
+        }
+        if is_windows:
+            start_kwargs["gui"] = "edgechromium"
+
+        webview.start(**start_kwargs)
         if not result_path.exists():
             payload["error"] = "The verification window closed before session capture completed."
             _atomic_write_json(result_path, payload)

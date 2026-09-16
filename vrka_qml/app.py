@@ -115,9 +115,16 @@ def main(argv: list[str] | None = None) -> int:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("VRKA.Downloader")
     except Exception:
         pass
-    # Window / taskbar icon — same VRKA wolf used for packaged EXE (vrka.ico)
+    # Window / taskbar / dock icon
     try:
-        app.setWindowIcon(QIcon(str(PROJECT_ROOT / "assets" / "branding" / "vrka.ico")))
+        branding_dir = PROJECT_ROOT / "assets" / "branding"
+        if sys.platform == "darwin":
+            icon_file = branding_dir / "vrka.icns"
+            if not icon_file.is_file():
+                icon_file = branding_dir / "vrka-wolf-256.png"
+        else:
+            icon_file = branding_dir / "vrka.ico"
+        app.setWindowIcon(QIcon(str(icon_file)))
     except Exception:
         pass
     _load_brand_fonts()

@@ -152,7 +152,12 @@ class YtdlpUpdater:
                     if item.get("name") and item.get("browser_download_url")
                 }
 
-                bin_name = "yt-dlp.exe" if os.name == "nt" else "yt-dlp"
+                if os.name == "nt":
+                    bin_name = "yt-dlp.exe"
+                elif sys.platform == "darwin":
+                    bin_name = "yt-dlp_macos" if "yt-dlp_macos" in assets else "yt-dlp"
+                else:
+                    bin_name = "yt-dlp"
                 bin_url = assets.get(bin_name) or ""
                 sha_url = assets.get("SHA2-256SUMS") or ""
                 sig_url = assets.get("SHA2-256SUMS.sig") or ""
@@ -252,6 +257,11 @@ class YtdlpUpdater:
                     raise ValueError(f"yt-dlp checksum mismatch: expected {expected_sha}, got {actual_sha}")
 
                 # 4. Execution verification test
+                if os.name != "nt":
+                    try:
+                        os.chmod(staging_bin, 0o755)
+                    except OSError:
+                        pass
                 valid, tested_ver, reason = app.validate_ytdlp_binary(staging_bin, expected_version=expected_ver)
                 if not valid:
                     if staging_bin.exists():
@@ -272,6 +282,12 @@ class YtdlpUpdater:
                     if previous.exists() and not active.exists():
                         os.replace(previous, active)
                     raise
+
+                if os.name != "nt":
+                    try:
+                        os.chmod(active, 0o755)
+                    except OSError:
+                        pass
 
                 # 6. Post-activation execution readback from the active binary
                 valid_active, active_ver, active_reason = app.validate_ytdlp_binary(active, expected_version=expected_ver)
