@@ -27,9 +27,12 @@ if deno_executable.is_file():
     binaries.append((str(deno_executable), "deno_bin"))
 
 # Collect required native/networking/crypto dependencies
+# Note: FFmpeg and FFprobe binaries are strictly NOT bundled with VRKA to maintain
+# a lightweight distribution and isolate external GPL tools across a subprocess boundary.
+# FFmpeg is managed at runtime in ~/.vrka/runtime or discovered via Homebrew/PATH.
 for package_name in (
     "curl_cffi", "yt_dlp_ejs", "webview", "pgpy", "cryptography",
-    "static_ffmpeg", "objc", "WebKit", "AppKit", "Foundation"
+    "objc", "WebKit", "AppKit", "Foundation"
 ):
     package_datas, package_binaries, package_hiddenimports = collect_all(package_name)
     datas += package_datas
@@ -37,21 +40,10 @@ for package_name in (
     hiddenimports += package_hiddenimports
 
 hiddenimports += [
-    "yt_dlp", "yt_dlp.extractor", "yt_dlp.version", "static_ffmpeg",
+    "yt_dlp", "yt_dlp.extractor", "yt_dlp.version",
     "objc", "WebKit", "AppKit", "Foundation",
     "vrka_platform", "vrka_platform.macos", "vrka_platform.browser.cocoa_wkwebview",
 ]
-
-# Bundle static FFmpeg and FFprobe binaries for standalone app execution
-try:
-    from static_ffmpeg import run as _s_run
-    _s_ffmpeg, _s_ffprobe = _s_run.get_or_fetch_platform_executables_else_raise()
-    if _s_ffmpeg and Path(_s_ffmpeg).is_file():
-        binaries.append((str(_s_ffmpeg), "ffmpeg_bin"))
-    if _s_ffprobe and Path(_s_ffprobe).is_file():
-        binaries.append((str(_s_ffprobe), "ffmpeg_bin"))
-except Exception as _e:
-    print(f"Warning: static-ffmpeg binaries could not be collected: {_e}")
 
 
 a = Analysis(

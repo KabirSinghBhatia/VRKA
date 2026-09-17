@@ -364,8 +364,8 @@ class UpdateAllAvailableTests(unittest.TestCase):
         """resolve_ffmpeg_location() must discover valid ffmpeg and ffprobe binaries."""
         import os
         import vrka_downloader as vd
-        ffmpeg_dir = vd.resolve_ffmpeg_location()
-        self.assertIsNotNone(ffmpeg_dir, "FFmpeg directory must be resolvable via static-ffmpeg or runtime")
+        ffmpeg_dir = vd.resolve_ffmpeg_location() or vd.ensure_ffmpeg_runtime()
+        self.assertIsNotNone(ffmpeg_dir, "FFmpeg directory must be resolvable via managed runtime or system PATH")
         exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
         probe_name = "ffprobe.exe" if os.name == "nt" else "ffprobe"
         ffmpeg_path = os.path.join(ffmpeg_dir, exe_name)

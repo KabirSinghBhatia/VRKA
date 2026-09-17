@@ -917,14 +917,61 @@ def open_path(path):
         pass
 
 
-PINNED_FFMPEG_RELEASE = {
-    "version": "9.0.1",
-    "architecture": "win64",
-    "distribution": "GyanD/codexffmpeg",
-    "archive_url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.1/ffmpeg-9.0.1-essentials_build.zip",
-    "archive_sha256": "fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9",
-    "archive_max_bytes": 150_000_000,
+PINNED_FFMPEG_RELEASES = {
+    "Windows": {
+        "x86_64": {
+            "version": "9.0.1",
+            "architecture": "win64",
+            "distribution": "GyanD/codexffmpeg",
+            "archive_url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.1/ffmpeg-9.0.1-essentials_build.zip",
+            "archive_sha256": "fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9",
+            "archive_max_bytes": 150_000_000,
+        },
+        "AMD64": {
+            "version": "9.0.1",
+            "architecture": "win64",
+            "distribution": "GyanD/codexffmpeg",
+            "archive_url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.1/ffmpeg-9.0.1-essentials_build.zip",
+            "archive_sha256": "fec81ae03971d9dd4be3ebe02e263bd2ec1d789483f931bdba5f5715e65da2e9",
+            "archive_max_bytes": 150_000_000,
+        },
+    },
+    "Darwin": {
+        "arm64": {
+            "version": "8.0",
+            "architecture": "darwin_arm64",
+            "distribution": "static_ffmpeg/darwin_arm64",
+            "archive_url": "https://github.com/zackees/ffmpeg_bins/raw/main/v8.0/darwin_arm64.zip",
+            "archive_sha256": "b2da44a8169c4d09a97db996250690c3346f72e4795521d23d3dbb1e72421207",
+            "archive_max_bytes": 120_000_000,
+        },
+        "x86_64": {
+            "version": "8.0",
+            "architecture": "darwin_x86_64",
+            "distribution": "static_ffmpeg/darwin",
+            "archive_url": "https://github.com/zackees/ffmpeg_bins/raw/main/v8.0/darwin.zip",
+            "archive_sha256": "70fd5b21cb37b6ea97c8b584cf76b3cc6a90179831c9c269811b9716c28605fb",
+            "archive_max_bytes": 120_000_000,
+        },
+    },
 }
+
+
+def get_pinned_ffmpeg_release():
+    """Return pinned release metadata for the current operating system and architecture."""
+    sys_name = platform.system()
+    machine = platform.machine().lower()
+    plat_releases = PINNED_FFMPEG_RELEASES.get(sys_name, {})
+    if sys_name == "Windows":
+        return plat_releases.get("x86_64") or plat_releases.get("AMD64")
+    if sys_name == "Darwin":
+        if "arm" in machine or "aarch64" in machine:
+            return plat_releases.get("arm64")
+        return plat_releases.get("x86_64")
+    return None
+
+
+PINNED_FFMPEG_RELEASE = PINNED_FFMPEG_RELEASES["Windows"]["x86_64"]
 
 _FFMPEG_BOOTSTRAP_LOCK = threading.Lock()
 
@@ -983,8 +1030,8 @@ def validate_ffprobe_binary(path, expected_version=None):
 def resolve_ffmpeg_location():
     """Return the directory containing validated ffmpeg and ffprobe binaries.
     Prefers the local managed runtime in %LOCALAPPDATA%\\VRKA\\runtime (or ~/.vrka/runtime),
-    then bundled beside the application, then Python static-ffmpeg runtime, then system/Homebrew,
-    otherwise returns None."""
+    then platform tool search paths (Homebrew/system), then system PATH,
+    then local user override, then active Python static-ffmpeg runtime, otherwise returns None."""
     exe_suffix = ".exe" if _PLATFORM.is_windows else ""
     ffmpeg_active = RUNTIME_DIR / f"ffmpeg{exe_suffix}"
     ffprobe_active = RUNTIME_DIR / f"ffprobe{exe_suffix}"
@@ -996,42 +1043,6 @@ def resolve_ffmpeg_location():
 
     exe_name = _PLATFORM.get_binary_name("ffmpeg")
     probe_name = _PLATFORM.get_binary_name("ffprobe")
-
-    # Bundled application candidates
-    if getattr(sys, "frozen", False):
-        exe_dir = os.path.dirname(sys.executable)
-        for cand_dir in (
-            os.path.join(exe_dir, "ffmpeg_bin"),
-            os.path.join(getattr(sys, "_MEIPASS", ""), "ffmpeg_bin"),
-            os.path.join(os.path.dirname(exe_dir), "Frameworks", "ffmpeg_bin"),
-            os.path.join(os.path.dirname(exe_dir), "Resources", "ffmpeg_bin"),
-        ):
-            if os.path.isfile(os.path.join(cand_dir, exe_name)) and os.path.isfile(os.path.join(cand_dir, probe_name)):
-                valid_f, _, _ = validate_ffmpeg_binary(os.path.join(cand_dir, exe_name))
-                valid_p, _, _ = validate_ffprobe_binary(os.path.join(cand_dir, probe_name))
-                if valid_f and valid_p:
-                    return cand_dir
-
-    candidate = os.path.join(get_resource_base(), "ffmpeg_bin")
-    if os.path.isfile(os.path.join(candidate, exe_name)) and os.path.isfile(os.path.join(candidate, probe_name)):
-        valid_f, _, _ = validate_ffmpeg_binary(os.path.join(candidate, exe_name))
-        valid_p, _, _ = validate_ffprobe_binary(os.path.join(candidate, probe_name))
-        if valid_f and valid_p:
-            return candidate
-
-    # Python static-ffmpeg package discovery (contained in .venv or active environment)
-    try:
-        from static_ffmpeg import run as _s_run
-        _s_ffmpeg, _s_ffprobe = _s_run.get_or_fetch_platform_executables_else_raise()
-        if _s_ffmpeg and _s_ffprobe and os.path.isfile(_s_ffmpeg) and os.path.isfile(_s_ffprobe):
-            _s_dir = os.path.dirname(_s_ffmpeg)
-            if os.path.dirname(_s_ffprobe) == _s_dir:
-                valid_f, _, _ = validate_ffmpeg_binary(_s_ffmpeg)
-                valid_p, _, _ = validate_ffprobe_binary(_s_ffprobe)
-                if valid_f and valid_p:
-                    return _s_dir
-    except Exception:
-        pass
 
     # Platform tool search paths (e.g. macOS Homebrew, Linux /usr/local/bin)
     for tool_dir in _PLATFORM.get_system_tool_search_paths():
@@ -1054,6 +1065,35 @@ def resolve_ffmpeg_location():
             if valid_f and valid_p:
                 return ffmpeg_dir
 
+    # Optional local user override folder (ffmpeg_bin beside application or in resource base)
+    cand_user_dirs = []
+    if getattr(sys, "frozen", False):
+        exe_dir = os.path.dirname(sys.executable)
+        cand_user_dirs.append(os.path.join(exe_dir, "ffmpeg_bin"))
+    cand_user_dirs.append(os.path.join(get_resource_base(), "ffmpeg_bin"))
+    for cand_dir in cand_user_dirs:
+        cand_ffmpeg = os.path.join(cand_dir, exe_name)
+        cand_ffprobe = os.path.join(cand_dir, probe_name)
+        if os.path.isfile(cand_ffmpeg) and os.path.isfile(cand_ffprobe):
+            valid_f, _, _ = validate_ffmpeg_binary(cand_ffmpeg)
+            valid_p, _, _ = validate_ffprobe_binary(cand_ffprobe)
+            if valid_f and valid_p:
+                return cand_dir
+
+    # Python static-ffmpeg package discovery (for development environments)
+    try:
+        from static_ffmpeg import run as _s_run
+        _s_ffmpeg, _s_ffprobe = _s_run.get_or_fetch_platform_executables_else_raise()
+        if _s_ffmpeg and _s_ffprobe and os.path.isfile(_s_ffmpeg) and os.path.isfile(_s_ffprobe):
+            _s_dir = os.path.dirname(_s_ffmpeg)
+            if os.path.dirname(_s_ffprobe) == _s_dir:
+                valid_f, _, _ = validate_ffmpeg_binary(_s_ffmpeg)
+                valid_p, _, _ = validate_ffprobe_binary(_s_ffprobe)
+                if valid_f and valid_p:
+                    return _s_dir
+    except Exception:
+        pass
+
     return None
 
 
@@ -1063,7 +1103,8 @@ def get_bundled_ffmpeg_dir():
 
 
 def ensure_ffmpeg_runtime(progress_callback=None):
-    """Ensure a verified managed FFmpeg/FFprobe runtime is provisioned and active."""
+    """Ensure a verified managed FFmpeg/FFprobe runtime is provisioned and active.
+    FFmpeg is strictly unbundled from application releases and provisioned on-demand into RUNTIME_DIR."""
     existing = resolve_ffmpeg_location()
     if existing:
         return existing
@@ -1073,57 +1114,29 @@ def ensure_ffmpeg_runtime(progress_callback=None):
             if existing:
                 return existing
             raise RuntimeError("Concurrent FFmpeg provisioning in progress.")
+
+    release_info = get_pinned_ffmpeg_release()
+    if not release_info:
+        raise RuntimeError(
+            f"Automatic FFmpeg provisioning is not configured for platform '{platform.system()} ({platform.machine()})'. "
+            "Please install FFmpeg via your system package manager (e.g. 'brew install ffmpeg')."
+        )
+
     archive_dest = None
     staging_ffmpeg = None
     staging_ffprobe = None
     try:
-        if platform.system() == "Darwin":
-            # On macOS, resolve via static-ffmpeg in the virtual environment without modifying host
-            try:
-                from static_ffmpeg import run as _s_run
-                if progress_callback:
-                    progress_callback("Provisioning FFmpeg runtime via static-ffmpeg...")
-                _s_ffmpeg, _s_ffprobe = _s_run.get_or_fetch_platform_executables_else_raise()
-                if _s_ffmpeg and _s_ffprobe and os.path.isfile(_s_ffmpeg) and os.path.isfile(_s_ffprobe):
-                    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-                    active_ffmpeg = RUNTIME_DIR / "ffmpeg"
-                    active_ffprobe = RUNTIME_DIR / "ffprobe"
-                    shutil.copy2(_s_ffmpeg, active_ffmpeg)
-                    shutil.copy2(_s_ffprobe, active_ffprobe)
-                    active_ffmpeg.chmod(active_ffmpeg.stat().st_mode | 0o755)
-                    active_ffprobe.chmod(active_ffprobe.stat().st_mode | 0o755)
-                    valid_f, ver_f, _ = validate_ffmpeg_binary(active_ffmpeg)
-                    valid_p, ver_p, _ = validate_ffprobe_binary(active_ffprobe)
-                    if valid_f and valid_p:
-                        _save_runtime_state(
-                            ffmpeg_version=ver_f,
-                            ffmpeg_sha256="",
-                            ffmpeg_installed_at=int(time.time()),
-                            ffmpeg_distribution="static-ffmpeg",
-                        )
-                        if progress_callback:
-                            progress_callback(f"Managed FFmpeg runtime activated successfully (version {ver_f}).")
-                        return str(RUNTIME_DIR)
-            except Exception as _e:
-                _LOGGER.warning("static-ffmpeg provisioning on macOS encountered: %s", _e)
-
-            existing = resolve_ffmpeg_location()
-            if existing:
-                return existing
-            raise RuntimeError("FFmpeg could not be resolved on macOS via static-ffmpeg or system PATH.")
-
-        # Windows provisioning flow via GyanD
         archive_dest = RUNTIME_DIR / ".ffmpeg_archive.download"
-        exe_suffix = ".exe" if os.name == "nt" else ""
+        exe_suffix = ".exe" if _PLATFORM.is_windows else ""
         staging_ffmpeg = RUNTIME_DIR / f".ffmpeg.staging{exe_suffix}"
         staging_ffprobe = RUNTIME_DIR / f".ffprobe.staging{exe_suffix}"
         RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
-        url = PINNED_FFMPEG_RELEASE["archive_url"]
-        expected_sha = PINNED_FFMPEG_RELEASE["archive_sha256"]
-        max_bytes = PINNED_FFMPEG_RELEASE["archive_max_bytes"]
+        url = release_info["archive_url"]
+        expected_sha = release_info["archive_sha256"]
+        max_bytes = release_info["archive_max_bytes"]
 
         if progress_callback:
-            progress_callback(f"Provisioning managed FFmpeg runtime (version {PINNED_FFMPEG_RELEASE['version']})...")
+            progress_callback(f"Provisioning managed FFmpeg runtime (version {release_info['version']})...")
 
         if archive_dest.exists():
             archive_dest.unlink()
@@ -1181,6 +1194,9 @@ def ensure_ffmpeg_runtime(progress_callback=None):
                     with z.open(member) as source_f, open(staging_ffprobe, "wb") as target_f:
                         shutil.copyfileobj(source_f, target_f)
 
+        if not staging_ffmpeg.is_file() or not staging_ffprobe.is_file():
+            raise ValueError("Archive extraction did not yield valid ffmpeg and ffprobe binaries.")
+
         if os.name != "nt":
             try:
                 staging_ffmpeg.chmod(staging_ffmpeg.stat().st_mode | 0o755)
@@ -1228,7 +1244,7 @@ def ensure_ffmpeg_runtime(progress_callback=None):
             ffmpeg_version=ver_f,
             ffmpeg_sha256=actual_sha,
             ffmpeg_installed_at=int(time.time()),
-            ffmpeg_distribution=PINNED_FFMPEG_RELEASE["distribution"],
+            ffmpeg_distribution=release_info["distribution"],
         )
 
         if progress_callback:

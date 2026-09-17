@@ -39,7 +39,7 @@ Get the official Windows release from [GitHub Releases (v4.5.3)](https://github.
 | **[Complete Source Archive](https://github.com/MaverickRox/VRKA/releases/tag/v4.5.3)** | `VRKA-4.5.3-Build-021-Source.zip` | Developers | Complete buildable source distribution snapshot. |
 
 > **No Manual FFmpeg Installation Required**:
-> VRKA is strictly PATH-independent. The application automatically provisions and verifies required media processing components in `%LOCALAPPDATA%\VRKA\runtime\` upon first video merge or audio extraction, and reuses them offline on subsequent runs.
+> VRKA distributions are strictly unbundled and lightweight. The application automatically provisions and cryptographically verifies required media processing components in `%LOCALAPPDATA%\VRKA\runtime\` (Windows) or `~/.vrka/runtime/` (macOS/Linux) upon first video merge or audio extraction, detects Homebrew if installed, and reuses tools offline on subsequent runs.
 
 ### Verifying Checksums
 

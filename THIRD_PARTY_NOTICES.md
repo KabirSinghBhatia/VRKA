@@ -51,3 +51,4 @@ VRKA 4.5.0 (Build 018) utilizes the following open-source components:
 - **License**: LGPL-2.1-or-later / GPL-2.0-or-later
 - **Upstream**: [https://ffmpeg.org/](https://ffmpeg.org/)
 - **Integration**: VRKA interfaces with FFmpeg and FFprobe as external subprocesses via standard process pipes for stream multiplexing, audio conversion, and precision video trimming. No FFmpeg code is statically or dynamically linked into the core VRKA binaries.
+- **Distribution**: FFmpeg and FFprobe binaries are strictly **unbundled** from VRKA releases and installers, managed separately in the user's runtime directory (`~/.vrka/runtime` or `%LOCALAPPDATA%\VRKA\runtime`) or resolved via system package managers (e.g. Homebrew). See [docs/FFMPEG_COMPLIANCE.md](docs/FFMPEG_COMPLIANCE.md) for architecture and licensing details.

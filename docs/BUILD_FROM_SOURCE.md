@@ -91,9 +91,11 @@ Run the automated build script:
 ./build_mac.sh
 ```
 This produces:
-- `dist/VRKA.app` (Ad-hoc signed Mach-O arm64 bundle)
-- `dist/VRKA-4.5.3-macOS-arm64.dmg` (Distributable disk image)
+- `dist/VRKA.app` (Ad-hoc signed Mach-O arm64 bundle, unbundled lightweight distribution)
+- `dist/VRKA-4.5.3-macOS-arm64.dmg` (Distributable disk image, ~50 MB)
 - `dist/VRKA-4.5.3-macOS-arm64.zip` (Portable ZIP archive)
+
+*Note: In accordance with [docs/FFMPEG_COMPLIANCE.md](FFMPEG_COMPLIANCE.md), all release packages are strictly unbundled from external FFmpeg binaries. FFmpeg is resolved via Homebrew/PATH or provisioned on demand into `~/.vrka/runtime/` at runtime.*
 
 ### Windows (Standalone Executable & Setup Installer)
 ```powershell

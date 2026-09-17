@@ -23,9 +23,9 @@ datas.append((str(project_dir / "assets" / "browser_protection"), "assets/browse
 datas.append((str(project_dir / "third_party" / "media_observer" / "puemos-hls-downloader" / "extension-mv3-chrome-v5.5.0.zip"), "third_party/media_observer/puemos-hls-downloader"))
 datas.append((str(project_dir / "THIRD_PARTY_NOTICES.md"), "."))
 datas.append((str(project_dir / "vrka_qml" / "qml"), "vrka_qml/qml"))
-# FFmpeg/ffprobe binaries are distributed alongside VRKA.exe in ffmpeg_bin/
-# (in both the portable directory and installer payload) to avoid 203MB duplication
-# inside the single-file exe and eliminate TEMP extraction latency.
+# Note: FFmpeg and FFprobe binaries are strictly NOT bundled or distributed with VRKA.exe.
+# They are managed at runtime in %LOCALAPPDATA%\VRKA\runtime\ with SHA-256 integrity verification,
+# isolating external GPL tools across a subprocess boundary in compliance with docs/FFMPEG_COMPLIANCE.md.
 binaries = []
 hiddenimports = []
 
