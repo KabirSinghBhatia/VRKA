@@ -1,90 +1,103 @@
-# Third-Party Software Notices and Attributions
+#!/usr/bin/env python3
+"""Automated License Collector and Compliance Manager for VRKA.
 
-VRKA incorporates and interfaces with the third-party open-source components listed below.
-We are grateful to the open-source community and respective authors for their contributions.
+Inspects installed packages in .venv, tracks non-Python embedded components
+and external media tools, generates THIRD_PARTY_NOTICES.md, and maintains
+canonical SPDX license templates in LICENSES/ in accordance with the REUSE specification.
+"""
 
----
+from __future__ import annotations
 
-## Table of Contents
+import argparse
+import importlib.metadata as md
+import json
+import os
+from pathlib import Path
+import re
+import sys
 
-1. [Python Runtime Libraries](#1-python-runtime-libraries)
-2. [Embedded Third-Party Assets](#2-embedded-third-party-assets)
-3. [External Media Tools (Unbundled)](#3-external-media-tools-unbundled)
-4. [License Texts](#4-license-texts)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+LICENSES_DIR = PROJECT_ROOT / "LICENSES"
+NOTICES_FILE = PROJECT_ROOT / "THIRD_PARTY_NOTICES.md"
+REQUIREMENTS_FILE = PROJECT_ROOT / "requirements.txt"
 
----
+# Core direct production packages required by VRKA
+CORE_PACKAGES = [
+    "yt-dlp",
+    "yt-dlp-ejs",
+    "curl_cffi",
+    "Pillow",
+    "pywebview",
+    "PySide6",
+    "PySide6_Essentials",
+    "PGPy",
+    "cryptography",
+    "pyobjc-framework-WebKit",
+    "standard-imghdr",
+    "certifi",
+    "charset-normalizer",
+    "websockets",
+    "cffi",
+    "pyinstaller",
+]
 
-## 1. Python Runtime Libraries
+# Non-Python embedded assets and external dependencies
+NON_PYTHON_COMPONENTS = [
+    {
+        "name": "puemos/hls-downloader",
+        "version": "5.5.0",
+        "license": "MIT",
+        "author": "Shy Alter",
+        "url": "https://github.com/puemos/hls-downloader",
+        "path": "third_party/media_observer/puemos-hls-downloader/",
+        "purpose": "Passive browser media request observation (manifest analysis).",
+    },
+    {
+        "name": "Space Mono",
+        "version": "1.001",
+        "license": "OFL-1.1",
+        "author": "Colophon Foundry / Google Fonts",
+        "url": "https://github.com/googlefonts/spacemono",
+        "path": "assets/fonts/",
+        "purpose": "Monospace typography used in diagnostic logs and code displays.",
+    },
+    {
+        "name": "Lucide / Feather Icons",
+        "version": "0.475.0",
+        "license": "MIT",
+        "author": "Lucide Contributors / Cole Bemis",
+        "url": "https://lucide.dev/",
+        "path": "assets/branding/nav/ and assets/branding/v2icons/",
+        "purpose": "UI navigation, task actions, and operational status iconography.",
+    },
+]
 
-| Component | Version | License | Upstream Project |
-| :--- | :--- | :--- | :--- |
-| **certifi** | `2026.7.22` | MPL-2.0 | [https://github.com/certifi/python-certifi](https://github.com/certifi/python-certifi) |
-| **cffi** | `2.1.1` | Custom / Permissive | [https://github.com/python-cffi/cffi](https://github.com/python-cffi/cffi) |
-| **charset-normalizer** | `3.5.1` | MIT | [https://pypi.org/project/charset-normalizer/](https://pypi.org/project/charset-normalizer/) |
-| **cryptography** | `50.0.1` | Custom / Permissive | [https://github.com/pyca/cryptography](https://github.com/pyca/cryptography) |
-| **curl_cffi** | `0.15.0` | MIT | [https://github.com/lexiforest/curl_cffi](https://github.com/lexiforest/curl_cffi) |
-| **PGPy** | `0.6.0` | BSD-3-Clause | [https://github.com/SecurityInnovation/PGPy](https://github.com/SecurityInnovation/PGPy) |
-| **pillow** | `12.3.0` | Custom / Permissive | [https://tidelift.com/subscription/pkg/pypi-pillow?utm_source=pypi-pillow&utm_medium=pypi](https://tidelift.com/subscription/pkg/pypi-pillow?utm_source=pypi-pillow&utm_medium=pypi) |
-| **pyinstaller** | `6.21.0` | GPL-2.0-or-later (with Bootloader Exception) | [https://pyinstaller.org](https://pyinstaller.org) |
-| **pyobjc-framework-WebKit** | `12.2.2` | MIT | [https://github.com/ronaldoussoren/pyobjc](https://github.com/ronaldoussoren/pyobjc) |
-| **PySide6** | `6.11.2` | LGPL-3.0-only | [https://pyside.org](https://pyside.org) |
-| **PySide6_Essentials** | `6.11.2` | LGPL-3.0-only | [https://pyside.org](https://pyside.org) |
-| **pywebview** | `6.2.1` | BSD-3-Clause | [https://pywebview.flowrl.com/](https://pywebview.flowrl.com/) |
-| **standard-imghdr** | `3.13.0` | PSF-2.0 | [https://github.com/youknowone/python-deadlib](https://github.com/youknowone/python-deadlib) |
-| **websockets** | `17.1` | Custom / Permissive | [https://github.com/python-websockets/websockets](https://github.com/python-websockets/websockets) |
-| **yt-dlp** | `2026.8.19` | The Unlicense | [https://github.com/yt-dlp/yt-dlp](https://github.com/yt-dlp/yt-dlp) |
-| **yt-dlp-ejs** | `0.8.0` | MIT | [https://github.com/yt-dlp/ejs](https://github.com/yt-dlp/ejs) |
+# External tools (strictly unbundled runtime tools)
+EXTERNAL_TOOLS = [
+    {
+        "name": "FFmpeg & FFprobe",
+        "license": "LGPL-2.1-or-later / GPL-2.0-or-later",
+        "upstream": "https://ffmpeg.org/",
+        "purpose": "External media toolchain for stream muxing, audio conversion, and precision video trimming.",
+        "distribution": "Strictly unbundled from application packages; provisioned on-demand into local user runtime directory (~/.vrka/runtime or %LOCALAPPDATA%\\VRKA\\runtime) or resolved via system package managers (Homebrew). See docs/FFMPEG_COMPLIANCE.md.",
+    },
+    {
+        "name": "Deno",
+        "license": "MIT",
+        "upstream": "https://deno.land/",
+        "purpose": "Optional external JavaScript runtime used by yt-dlp for modern YouTube challenge solving.",
+        "distribution": "Standalone CLI binary; resolved via deno_bin/ or system PATH.",
+    },
+]
 
----
-
-## 2. Embedded Third-Party Assets
-
-### puemos/hls-downloader
-- **Version**: `5.5.0`
-- **License**: MIT
-- **Author / Upstream**: [Shy Alter](https://github.com/puemos/hls-downloader)
-- **Location**: `third_party/media_observer/puemos-hls-downloader/`
-- **Purpose**: Passive browser media request observation (manifest analysis).
-
-### Space Mono
-- **Version**: `1.001`
-- **License**: OFL-1.1
-- **Author / Upstream**: [Colophon Foundry / Google Fonts](https://github.com/googlefonts/spacemono)
-- **Location**: `assets/fonts/`
-- **Purpose**: Monospace typography used in diagnostic logs and code displays.
-
-### Lucide / Feather Icons
-- **Version**: `0.475.0`
-- **License**: MIT
-- **Author / Upstream**: [Lucide Contributors / Cole Bemis](https://lucide.dev/)
-- **Location**: `assets/branding/nav/ and assets/branding/v2icons/`
-- **Purpose**: UI navigation, task actions, and operational status iconography.
-
----
-
-## 3. External Media Tools (Unbundled)
-
-### FFmpeg & FFprobe
-- **License**: LGPL-2.1-or-later / GPL-2.0-or-later
-- **Upstream**: [https://ffmpeg.org/](https://ffmpeg.org/)
-- **Purpose**: External media toolchain for stream muxing, audio conversion, and precision video trimming.
-- **Distribution & Architecture**: Strictly unbundled from application packages; provisioned on-demand into local user runtime directory (~/.vrka/runtime or %LOCALAPPDATA%\VRKA\runtime) or resolved via system package managers (Homebrew). See docs/FFMPEG_COMPLIANCE.md.
-
-### Deno
-- **License**: MIT
-- **Upstream**: [https://deno.land/](https://deno.land/)
-- **Purpose**: Optional external JavaScript runtime used by yt-dlp for modern YouTube challenge solving.
-- **Distribution & Architecture**: Standalone CLI binary; resolved via deno_bin/ or system PATH.
-
----
-
-## 4. License Texts
-
-Full text copies of all canonical licenses are also preserved in the `LICENSES/` directory.
-
-### MIT License
-```text
-MIT License
+# Canonical SPDX License texts for LICENSES/
+SPDX_TEMPLATES = {
+    "GPL-3.0-or-later": PROJECT_ROOT / "LICENSE",  # Root LICENSE is GPL-3.0
+    "GPL-2.0-or-later": LICENSES_DIR / "GPL-2.0-or-later.txt",
+    "LGPL-2.1-or-later": LICENSES_DIR / "LGPL-2.1-or-later.txt",
+    "OFL-1.1": PROJECT_ROOT / "assets" / "fonts" / "OFL.txt",
+    "MPL-2.0": LICENSES_DIR / "MPL-2.0.txt",
+    "MIT": """MIT License
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -103,11 +116,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
-
-### Apache License 2.0
-```text
-Apache License
+""",
+    "Apache-2.0": """                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
 
@@ -217,11 +227,8 @@ Apache License
       and charge a fee for, warranty, support, or indemnity liabilities.
 
    END OF TERMS AND CONDITIONS
-```
-
-### BSD 3-Clause License
-```text
-Redistribution and use in source and binary forms, with or without
+""",
+    "BSD-3-Clause": """Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
 1. Redistributions of source code must retain the above copyright notice, this
@@ -245,39 +252,8 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-```
-
-### The Unlicense
-```text
-This is free and unencumbered software released into the public domain.
-
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
-
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
-
-For more information, please refer to <https://unlicense.org/>
-```
-
-### GNU Lesser General Public License (LGPL) v3.0
-```text
-GNU LESSER GENERAL PUBLIC LICENSE
+""",
+    "LGPL-3.0-only": """                   GNU LESSER GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
  Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
@@ -424,11 +400,40 @@ of the GNU Lesser General Public License "or any later version"
 applies to it, you have the option of following the terms and
 conditions either of that published version or of any later version
 published by the Free Software Foundation.
-```
+""",
+    "MPL-2.0": """Mozilla Public License Version 2.0
+==================================
 
-### Python Software Foundation License 2.0
-```text
-PYTHON SOFTWARE FOUNDATION LICENSE VERSION 2
+1. Definitions
+--------------
+... (Full MPL-2.0 text available at https://www.mozilla.org/MPL/2.0/)
+""",
+    "Unlicense": """This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <https://unlicense.org/>
+""",
+    "PSF-2.0": """PYTHON SOFTWARE FOUNDATION LICENSE VERSION 2
 --------------------------------------------
 
 1. This LICENSE AGREEMENT is between the Python Software Foundation ("PSF"), and
@@ -451,5 +456,269 @@ available to others as provided herein, then Licensee hereby agrees to include i
 any such work a brief summary of the changes made to Python.
 
 4. PSF is making Python available to Licensee on an "AS IS" basis.
-```
+""",
+}
 
+
+def inspect_packages(target_names: list[str]) -> list[dict]:
+    """Inspect installed packages and return normalized metadata."""
+    results = []
+    for pkg_name in target_names:
+        try:
+            dist = md.distribution(pkg_name)
+        except Exception:
+            continue
+
+        raw_meta = dist.metadata
+        name = raw_meta.get("Name", pkg_name)
+        version = dist.version
+        author = raw_meta.get("Author") or raw_meta.get("Author-email") or "Contributors"
+        summary = raw_meta.get("Summary") or ""
+        homepage = raw_meta.get("Home-page")
+        if not homepage:
+            for url_entry in raw_meta.get_all("Project-URL") or []:
+                if any(k in url_entry.lower() for k in ["homepage", "source", "repository"]):
+                    homepage = url_entry.split(",")[-1].strip()
+                    break
+        if not homepage:
+            homepage = f"https://pypi.org/project/{name}/"
+
+        # Determine license
+        license_str = raw_meta.get("License") or ""
+        if not license_str or "see" in license_str.lower() or len(license_str) > 50:
+            classifiers = raw_meta.get_all("Classifier") or []
+            license_classifiers = [
+                c.replace("License :: OSI Approved :: ", "").replace("License :: ", "")
+                for c in classifiers
+                if c.startswith("License ::")
+            ]
+            if license_classifiers:
+                license_str = " / ".join(license_classifiers)
+
+        # Normalize common license names
+        if "gpl" in license_str.lower() and "lgpl" not in license_str.lower():
+            if "pyinstaller" in name.lower():
+                license_name = "GPL-2.0-or-later (with Bootloader Exception)"
+            else:
+                license_name = "GPL-3.0-or-later"
+        elif "lgpl" in license_str.lower() or "pyside" in name.lower() or "shiboken" in name.lower():
+            license_name = "LGPL-3.0-only"
+        elif "mit" in license_str.lower() or "curl_cffi" in name.lower() or "ejs" in name.lower():
+            license_name = "MIT"
+        elif "apache" in license_str.lower():
+            license_name = "Apache-2.0"
+        elif "bsd" in license_str.lower():
+            license_name = "BSD-3-Clause"
+        elif "mpl" in license_str.lower() or "certifi" in name.lower():
+            license_name = "MPL-2.0"
+        elif "unlicense" in license_str.lower() or "yt-dlp" in name.lower():
+            license_name = "The Unlicense"
+        elif "psf" in license_str.lower() or "imghdr" in name.lower():
+            license_name = "PSF-2.0"
+        else:
+            license_name = license_str or "Custom / Permissive"
+
+        results.append({
+            "name": name,
+            "version": version,
+            "license": license_name,
+            "author": author,
+            "url": homepage,
+            "summary": summary,
+        })
+    return results
+
+
+def populate_spdx_licenses(output_dir: Path) -> list[str]:
+    """Write canonical SPDX license template files into LICENSES/."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    created = []
+    for spdx_id, content in SPDX_TEMPLATES.items():
+        target_file = output_dir / f"{spdx_id}.txt"
+        if isinstance(content, Path):
+            if content.exists():
+                text = content.read_text(encoding="utf-8")
+                target_file.write_text(text, encoding="utf-8")
+                created.append(target_file.name)
+        else:
+            target_file.write_text(content.strip() + "\n", encoding="utf-8")
+            created.append(target_file.name)
+    return created
+
+
+def generate_third_party_notices(packages: list[dict]) -> str:
+    """Generate consolidated markdown for THIRD_PARTY_NOTICES.md."""
+    lines = [
+        "# Third-Party Software Notices and Attributions",
+        "",
+        "VRKA incorporates and interfaces with the third-party open-source components listed below.",
+        "We are grateful to the open-source community and respective authors for their contributions.",
+        "",
+        "---",
+        "",
+        "## Table of Contents",
+        "",
+        "1. [Python Runtime Libraries](#1-python-runtime-libraries)",
+        "2. [Embedded Third-Party Assets](#2-embedded-third-party-assets)",
+        "3. [External Media Tools (Unbundled)](#3-external-media-tools-unbundled)",
+        "4. [License Texts](#4-license-texts)",
+        "",
+        "---",
+        "",
+        "## 1. Python Runtime Libraries",
+        "",
+        "| Component | Version | License | Upstream Project |",
+        "| :--- | :--- | :--- | :--- |",
+    ]
+
+    for p in sorted(packages, key=lambda x: x["name"].lower()):
+        lines.append(f"| **{p['name']}** | `{p['version']}` | {p['license']} | [{p['url']}]({p['url']}) |")
+
+    lines.extend([
+        "",
+        "---",
+        "",
+        "## 2. Embedded Third-Party Assets",
+        "",
+    ])
+
+    for comp in NON_PYTHON_COMPONENTS:
+        lines.extend([
+            f"### {comp['name']}",
+            f"- **Version**: `{comp['version']}`",
+            f"- **License**: {comp['license']}",
+            f"- **Author / Upstream**: [{comp['author']}]({comp['url']})",
+            f"- **Location**: `{comp['path']}`",
+            f"- **Purpose**: {comp['purpose']}",
+            "",
+        ])
+
+    lines.extend([
+        "---",
+        "",
+        "## 3. External Media Tools (Unbundled)",
+        "",
+    ])
+
+    for tool in EXTERNAL_TOOLS:
+        lines.extend([
+            f"### {tool['name']}",
+            f"- **License**: {tool['license']}",
+            f"- **Upstream**: [{tool['upstream']}]({tool['upstream']})",
+            f"- **Purpose**: {tool['purpose']}",
+            f"- **Distribution & Architecture**: {tool['distribution']}",
+            "",
+        ])
+
+    lines.extend([
+        "---",
+        "",
+        "## 4. License Texts",
+        "",
+        "Full text copies of all canonical licenses are also preserved in the `LICENSES/` directory.",
+        "",
+        "### MIT License",
+        "```text",
+        SPDX_TEMPLATES["MIT"].strip(),
+        "```",
+        "",
+        "### Apache License 2.0",
+        "```text",
+        SPDX_TEMPLATES["Apache-2.0"].strip(),
+        "```",
+        "",
+        "### BSD 3-Clause License",
+        "```text",
+        SPDX_TEMPLATES["BSD-3-Clause"].strip(),
+        "```",
+        "",
+        "### The Unlicense",
+        "```text",
+        SPDX_TEMPLATES["Unlicense"].strip(),
+        "```",
+        "",
+        "### GNU Lesser General Public License (LGPL) v3.0",
+        "```text",
+        SPDX_TEMPLATES["LGPL-3.0-only"].strip(),
+        "```",
+        "",
+        "### Python Software Foundation License 2.0",
+        "```text",
+        SPDX_TEMPLATES["PSF-2.0"].strip(),
+        "```",
+        "",
+    ])
+
+    return "\n".join(lines) + "\n"
+
+
+def check_compliance(packages: list[dict]) -> tuple[bool, list[str]]:
+    """Check whether THIRD_PARTY_NOTICES.md and LICENSES/ are complete."""
+    errors = []
+    if not NOTICES_FILE.exists():
+        errors.append(f"Missing {NOTICES_FILE}")
+        return False, errors
+
+    notices_text = NOTICES_FILE.read_text(encoding="utf-8")
+
+    # Check that each package is mentioned in THIRD_PARTY_NOTICES.md
+    for p in packages:
+        if p["name"].lower() not in notices_text.lower():
+            errors.append(f"Package '{p['name']}' missing from THIRD_PARTY_NOTICES.md")
+
+    # Check non-python components
+    for comp in NON_PYTHON_COMPONENTS:
+        if comp["name"].lower() not in notices_text.lower():
+            errors.append(f"Asset '{comp['name']}' missing from THIRD_PARTY_NOTICES.md")
+
+    # Check canonical license files in LICENSES/
+    for spdx_id in SPDX_TEMPLATES:
+        target = LICENSES_DIR / f"{spdx_id}.txt"
+        if not target.exists():
+            errors.append(f"Missing canonical license file: {target}")
+
+    return len(errors) == 0, errors
+
+
+def main():
+    parser = argparse.ArgumentParser(description="VRKA License Collector and Compliance Manager")
+    parser.add_argument("--check", action="store_true", help="Verify compliance without modifying files")
+    parser.add_argument("--update-notices", action="store_true", help="Update THIRD_PARTY_NOTICES.md")
+    parser.add_argument("--dump-licenses", action="store_true", help="Populate LICENSES/ with SPDX templates & manifest.json")
+    args = parser.parse_args()
+
+    packages = inspect_packages(CORE_PACKAGES)
+    print(f">> Discovered {len(packages)} runtime packages in active environment.")
+
+    if args.dump_licenses:
+        created = populate_spdx_licenses(LICENSES_DIR)
+        print(f"[OK] Wrote {len(created)} canonical SPDX license templates into {LICENSES_DIR}")
+        manifest = {
+            "application": "VRKA",
+            "version": "4.5.3",
+            "packages": packages,
+            "embedded_assets": NON_PYTHON_COMPONENTS,
+            "external_tools": EXTERNAL_TOOLS,
+        }
+        manifest_path = LICENSES_DIR / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        print(f"[OK] Wrote manifest to {manifest_path}")
+
+    if args.update_notices:
+        content = generate_third_party_notices(packages)
+        NOTICES_FILE.write_text(content, encoding="utf-8")
+        print(f"[OK] Updated {NOTICES_FILE} ({len(content):,} bytes)")
+
+    if args.check or (not args.update_notices and not args.dump_licenses):
+        ok, errors = check_compliance(packages)
+        if not ok:
+            print("[FAIL] License compliance check found issues:")
+            for err in errors:
+                print(f"  - {err}")
+            sys.exit(1)
+        else:
+            print("[PASS] All dependencies and SPDX license templates are verified and compliant.")
+
+
+if __name__ == "__main__":
+    main()

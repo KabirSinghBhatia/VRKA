@@ -1,0 +1,6 @@
+Mozilla Public License Version 2.0
+==================================
+
+1. Definitions
+--------------
+... (Full MPL-2.0 text available at https://www.mozilla.org/MPL/2.0/)

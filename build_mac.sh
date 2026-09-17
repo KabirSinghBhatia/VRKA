@@ -27,7 +27,11 @@ fi
 # 3. Clean previous build artifacts
 rm -rf build/VRKA dist/VRKA dist/VRKA.app "dist/VRKA-${APP_VERSION}-macOS-${ARCH}.dmg" "dist/VRKA-${APP_VERSION}-macOS-${ARCH}.zip"
 
-# 4. Run PyInstaller
+# 4. Verify license compliance
+echo "Verifying open-source license compliance..."
+.venv/bin/python tools/collect_licenses.py --check
+
+# 5. Run PyInstaller
 echo "Running PyInstaller with VRKA-Mac.spec (unbundled FFmpeg)..."
 .venv/bin/pyinstaller --clean -y VRKA-Mac.spec
 
@@ -36,17 +40,17 @@ if [[ ! -d "dist/VRKA.app" ]]; then
     exit 1
 fi
 
-# 5. Apple Silicon Ad-Hoc Code Signing
+# 6. Apple Silicon Ad-Hoc Code Signing
 echo "Applying ad-hoc code signing for Apple Silicon..."
 codesign --force --deep -s - dist/VRKA.app
 codesign --verify --deep --strict dist/VRKA.app
 echo "Signature verification passed."
 
-# 6. Create distributable DMG
+# 7. Create distributable DMG
 echo "Packaging dist/VRKA-${APP_VERSION}-macOS-${ARCH}.dmg..."
 hdiutil create -volname "VRKA" -srcfolder dist/VRKA.app -ov -format UDZO "dist/VRKA-${APP_VERSION}-macOS-${ARCH}.dmg"
 
-# 7. Create standalone ZIP archive
+# 8. Create standalone ZIP archive
 echo "Packaging dist/VRKA-${APP_VERSION}-macOS-${ARCH}.zip..."
 (cd dist && zip -q -r -y "VRKA-${APP_VERSION}-macOS-${ARCH}.zip" VRKA.app)
 

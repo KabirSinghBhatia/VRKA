@@ -181,6 +181,14 @@ def generate_release_package(source_only: bool = False, preserve_packages: bool 
             if not pkg.is_file():
                 raise FileNotFoundError(f"Cannot preserve packages: Missing required package {pkg}")
     elif not source_only:
+        # 2. Verify open-source license compliance
+        print(">> Verifying open-source license compliance...")
+        collector_script = PROJECT_ROOT / "tools" / "collect_licenses.py"
+        chk_res = subprocess.run([sys.executable, str(collector_script), "--check"], cwd=PROJECT_ROOT)
+        if chk_res.returncode != 0:
+            raise RuntimeError("Open-source license compliance check failed!")
+        print("[OK] License compliance verified.")
+
         # 3. Build/Stage PyInstaller Binary
         dist_exe = build_pyinstaller_binary()
 
